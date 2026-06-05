@@ -2,9 +2,12 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 
+mod color;
+mod colorize;
 mod conflicts;
 mod db;
 mod infer;
+mod keywords;
 mod loot_refs;
 mod mi_signal;
 mod tags;
@@ -33,6 +36,12 @@ enum Command {
         /// Path to gd-filter.json (defaults to ~/WanezGD_Tools/app/data/gd-filter.json).
         #[arg(short = 'g', long)]
         gd_filter: Option<PathBuf>,
+    },
+    /// Bake color codes into the tag text and write the rewritten .txt files.
+    Colorize {
+        /// Directory to write the colored .txt files into.
+        #[arg(short, long, default_value = "out/text_en")]
+        out: PathBuf,
     },
     /// Report rarity-ambiguous tags (awakened/upgraded variants reusing a tag).
     Conflicts,
@@ -64,6 +73,7 @@ fn main() {
             let path = gd_filter.unwrap_or_else(|| PathBuf::from(DEFAULT_FILTER));
             validate::run(&tags, &path);
         }
+        Command::Colorize { out } => colorize::run(&mut dbs, &out),
         Command::Conflicts => conflicts::run(&mut dbs),
         Command::Grep { needle } => tags::grep(&needle),
         Command::LootRefs => loot_refs::run(&mut dbs),

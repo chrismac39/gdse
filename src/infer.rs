@@ -1,10 +1,9 @@
-//! Inferring WanezGD-style tag keywords ({Type, Classification, Group}) from
-//! the Grim Dawn `.arz` database.
+//! Inferring WanezGD-style tag keywords from the Grim Dawn `.arz` database.
 //!
 //! This replaces WanezGD_Tools' hand-maintained `gd-filter.json` `Tags` map.
-//! We infer:
-//!   - Regular Item (+ Group: Faction / Set / None), Classification from rarity
-//!   - Affix (Group: Prefix / Suffix), Classification from rarity
+//! For each tag we infer a `Kind` (Type) and a `Rarity` (Classification):
+//!   - Regular Item, rarity from `itemClassification` (mode across its records)
+//!   - Affix, rarity from the affix record's `itemClassification`
 //!   - MI (Monster Infrequent): a Rare, non-faction item that scales to the
 //!     level cap and whose drop is rolled by a `tdyn_*` dynamic affix table.
 //!     Only Rare MIs are flagged — epic/legendary "MIs" aren't mechanically
@@ -17,36 +16,45 @@ use lib_gddb::arz::{Database, DatabaseValue, Record};
 use serde::Serialize;
 
 use crate::db;
+use crate::keywords::{Kind, Rarity};
 
 const ITEMS_PREFIX: &str = "records/items/";
 const PREFIX_PATH: &str = "records/items/lootaffixes/prefix/";
 const SUFFIX_PATH: &str = "records/items/lootaffixes/suffix/";
 const FACTION_PREFIX: &str = "records/items/faction/";
-const LOOTSETS_PREFIX: &str = "records/items/lootsets/";
 const LOOTTABLES_PREFIX: &str = "records/items/loottables/";
 
 const ITEM_TAG: &str = "itemNameTag";
 const ITEM_RARITY: &str = "itemClassification";
 const ITEM_LEVEL: &str = "itemLevel";
+const ITEM_CLASS: &str = "Class";
 const AFFIX_TAG: &str = "lootRandomizerName";
-const SET_MEMBERS: &str = "setMembers";
-const RARE: &str = "Rare";
+
+/// `Class` prefixes for equippable gear (weapons, shields/offhands, armor,
+/// jewelry) — the items that can roll a name-altering prefix/suffix. Everything
+/// else (relics=ItemArtifact, components=QuestItem, augments, etc.) cannot.
+const GEAR_CLASSES: [&str; 2] = ["Weapon", "Armor"];
 
 /// A true MI scales to the endgame level cap; one-off quest/unique rares cap
 /// well below it (~70). Requiring a level-cap variant removes those FPs without
 /// dropping any real MI. (Current cap; bump if a future expansion raises it.)
 const MI_MIN_MAX_LEVEL: u32 = 94;
 
-
 /// The inferred keywords for a single tag.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub struct TagInfo {
     #[serde(rename = "Type")]
-    pub kind: String,
+    pub kind: Kind,
     #[serde(rename = "Classification")]
-    pub classification: String,
-    #[serde(rename = "Group")]
-    pub group: String,
+    pub rarity: Rarity,
+    /// Whether this item can be displayed with a name-altering prefix/suffix
+    /// affix — the only reason to bake a color code into a base name (to stop
+    /// the affix's color bleeding into it). True only for equippable, non-
+    /// faction gear of rarity Common/Magical/Rare; Epic/Legendary uniques,
+    /// relics, components and faction gear never roll a name affix. Not part of
+    /// the gd-filter schema, so skipped when serializing.
+    #[serde(skip)]
+    pub affixable: bool,
 }
 
 /// Runs the full inference pass over every database and returns the tag map.
@@ -56,19 +64,19 @@ pub fn infer<T: BufRead + Seek>(dbs: &mut [Database<T>]) -> HashMap<String, TagI
     let records = db::iter_records(dbs, |id| id.starts_with(ITEMS_PREFIX));
 
     let mut tags: HashMap<String, TagInfo> = HashMap::new();
-    // item record id -> its tag, so we can resolve set members and tdyn drops.
+    // item record id -> its tag, so we can resolve tdyn drops to tags.
     let mut record_tag: HashMap<String, String> = HashMap::new();
-    // item record ids referenced as members of some set.
-    let mut set_members: HashSet<String> = HashSet::new();
     // item record ids named by a `tdyn_*` dynamic affix table (resolved later,
     // since a table may be scanned before the items it references).
     let mut tdyn_refs: Vec<String> = Vec::new();
     // Per item tag: rarity -> #records, over all records and over base records
     // (excluding awakened/upgraded variants). Used to pick the canonical rarity.
-    let mut rarity_counts: HashMap<String, HashMap<String, u32>> = HashMap::new();
-    let mut base_rarity_counts: HashMap<String, HashMap<String, u32>> = HashMap::new();
+    let mut rarity_counts: HashMap<String, HashMap<Rarity, u32>> = HashMap::new();
+    let mut base_rarity_counts: HashMap<String, HashMap<Rarity, u32>> = HashMap::new();
     // item tags with at least one record under records/items/faction/.
     let mut faction_tags: HashSet<String> = HashSet::new();
+    // item tags with at least one equippable-gear record (can roll name affixes).
+    let mut gear_tags: HashSet<String> = HashSet::new();
     // item tag -> max itemLevel across its records (MI scaling signal).
     let mut max_levels: HashMap<String, u32> = HashMap::new();
 
@@ -78,8 +86,6 @@ pub fn infer<T: BufRead + Seek>(dbs: &mut [Database<T>]) -> HashMap<String, TagI
             collect_tdyn_refs(record, &mut tdyn_refs);
         } else if id.starts_with(PREFIX_PATH) || id.starts_with(SUFFIX_PATH) {
             classify_affix(record, &mut tags);
-        } else if id.starts_with(LOOTSETS_PREFIX) {
-            collect_set_members(record, &mut set_members);
         } else {
             accumulate_item(
                 record,
@@ -87,6 +93,7 @@ pub fn infer<T: BufRead + Seek>(dbs: &mut [Database<T>]) -> HashMap<String, TagI
                 &mut rarity_counts,
                 &mut base_rarity_counts,
                 &mut faction_tags,
+                &mut gear_tags,
                 &mut max_levels,
             );
         }
@@ -101,31 +108,13 @@ pub fn infer<T: BufRead + Seek>(dbs: &mut [Database<T>]) -> HashMap<String, TagI
             .get(tag)
             .filter(|c| !c.is_empty())
             .unwrap_or(all_counts);
-        let Some(classification) = mode_rarity(counts) else {
+        let Some(rarity) = mode_rarity(counts) else {
             continue;
         };
-        let group = if faction_tags.contains(tag) {
-            "Faction"
-        } else {
-            "None"
-        };
-        tags.insert(
-            tag.clone(),
-            TagInfo {
-                kind: "Regular Item".to_string(),
-                classification,
-                group: group.to_string(),
-            },
-        );
-    }
-
-    // Members of a set get Group=Set, overriding None/Faction.
-    for member in &set_members {
-        if let Some(tag) = record_tag.get(member) {
-            if let Some(info) = tags.get_mut(tag) {
-                info.group = "Set".to_string();
-            }
-        }
+        let affixable = gear_tags.contains(tag)
+            && !faction_tags.contains(tag)
+            && matches!(rarity, Rarity::Common | Rarity::Magical | Rarity::Rare);
+        tags.insert(tag.clone(), TagInfo { kind: Kind::RegularItem, rarity, affixable });
     }
 
     // A tag is a Monster Infrequent if a `tdyn_*` affix table rolls its drop.
@@ -135,13 +124,13 @@ pub fn infer<T: BufRead + Seek>(dbs: &mut [Database<T>]) -> HashMap<String, TagI
     let via_tdyn: HashSet<&String> = tdyn_refs.iter().filter_map(|id| record_tag.get(id)).collect();
     for (tag, info) in tags.iter_mut() {
         let scales_to_cap = max_levels.get(tag).copied().unwrap_or(0) >= MI_MIN_MAX_LEVEL;
-        if info.kind == "Regular Item"
-            && info.classification == RARE
-            && info.group != "Faction"
+        if info.kind == Kind::RegularItem
+            && info.rarity == Rarity::Rare
+            && !faction_tags.contains(tag)
             && scales_to_cap
             && via_tdyn.contains(tag)
         {
-            info.kind = "MI Item".to_string();
+            info.kind = Kind::MiItem;
         }
     }
 
@@ -167,22 +156,14 @@ fn classify_affix(record: &Record, tags: &mut HashMap<String, TagInfo>) {
     let Some(tag) = string_field(record, AFFIX_TAG) else {
         return;
     };
+    let Some(rarity) = string_field(record, ITEM_RARITY).and_then(|s| Rarity::from_db(&s)) else {
+        return;
+    };
     if tag.is_empty() {
         return;
     }
-    let group = if record.id.starts_with(PREFIX_PATH) {
-        "Prefix"
-    } else {
-        "Suffix"
-    };
-    tags.insert(
-        tag,
-        TagInfo {
-            kind: "Affix".to_string(),
-            classification: string_field(record, ITEM_RARITY).unwrap_or_default(),
-            group: group.to_string(),
-        },
-    );
+    // `affixable` is about base names; an affix tag is always colored directly.
+    tags.insert(tag, TagInfo { kind: Kind::Affix, rarity, affixable: false });
 }
 
 /// Accumulates an item record into the per-tag rarity tallies, the faction set,
@@ -191,9 +172,10 @@ fn classify_affix(record: &Record, tags: &mut HashMap<String, TagInfo>) {
 fn accumulate_item(
     record: &Record,
     record_tag: &mut HashMap<String, String>,
-    rarity_counts: &mut HashMap<String, HashMap<String, u32>>,
-    base_rarity_counts: &mut HashMap<String, HashMap<String, u32>>,
+    rarity_counts: &mut HashMap<String, HashMap<Rarity, u32>>,
+    base_rarity_counts: &mut HashMap<String, HashMap<Rarity, u32>>,
     faction_tags: &mut HashSet<String>,
+    gear_tags: &mut HashSet<String>,
     max_levels: &mut HashMap<String, u32>,
 ) {
     let Some(tag) = string_field(record, ITEM_TAG) else {
@@ -204,65 +186,36 @@ fn accumulate_item(
     }
     record_tag.insert(record.id.clone(), tag.clone());
 
+    if let Some(class) = string_field(record, ITEM_CLASS) {
+        if GEAR_CLASSES.iter().any(|g| class.starts_with(g)) {
+            gear_tags.insert(tag.clone());
+        }
+    }
+
     let level = record.data.get(ITEM_LEVEL).and_then(|v| v.as_int()).unwrap_or(0);
     let entry = max_levels.entry(tag.clone()).or_insert(0);
     *entry = (*entry).max(level);
 
-    let Some(rarity) = string_field(record, ITEM_RARITY) else {
+    let Some(rarity) = string_field(record, ITEM_RARITY).and_then(|s| Rarity::from_db(&s)) else {
         return;
     };
-    *rarity_counts
-        .entry(tag.clone())
-        .or_default()
-        .entry(rarity.clone())
-        .or_default() += 1;
+    *rarity_counts.entry(tag.clone()).or_default().entry(rarity).or_default() += 1;
     let is_variant = record.id.contains("/awakened/") || record.id.contains("/upgraded/");
     if !is_variant {
-        *base_rarity_counts
-            .entry(tag.clone())
-            .or_default()
-            .entry(rarity)
-            .or_default() += 1;
+        *base_rarity_counts.entry(tag.clone()).or_default().entry(rarity).or_default() += 1;
     }
     if record.id.starts_with(FACTION_PREFIX) {
         faction_tags.insert(tag);
     }
 }
 
-/// Rarity tiers low-to-high, for tie-breaking the mode toward the lower tier.
-fn rarity_rank(rarity: &str) -> u8 {
-    match rarity {
-        "Broken" => 0,
-        "Common" => 1,
-        "Magical" => 2,
-        "Rare" => 3,
-        "Epic" => 4,
-        "Legendary" => 5,
-        _ => 6,
-    }
-}
-
-/// The most frequent rarity in `counts`; ties resolve to the lower tier.
-fn mode_rarity(counts: &HashMap<String, u32>) -> Option<String> {
+/// The most frequent rarity in `counts`; ties resolve to the lower tier (the
+/// `Rarity` enum's `Ord` ranks low-to-high, so we compare it reversed).
+fn mode_rarity(counts: &HashMap<Rarity, u32>) -> Option<Rarity> {
     counts
         .iter()
-        .max_by(|a, b| {
-            a.1.cmp(b.1)
-                .then_with(|| rarity_rank(b.0).cmp(&rarity_rank(a.0)))
-        })
-        .map(|(rarity, _)| rarity.clone())
-}
-
-fn collect_set_members(record: &Record, set_members: &mut HashSet<String>) {
-    match record.data.get(SET_MEMBERS) {
-        Some(DatabaseValue::String(s)) => {
-            set_members.insert(s.clone());
-        }
-        Some(DatabaseValue::Strings(ss)) => {
-            set_members.extend(ss.iter().filter(|s| !s.is_empty()).cloned());
-        }
-        _ => {}
-    }
+        .max_by(|a, b| a.1.cmp(b.1).then_with(|| b.0.cmp(a.0)))
+        .map(|(rarity, _)| *rarity)
 }
 
 fn string_field(record: &Record, key: &str) -> Option<String> {

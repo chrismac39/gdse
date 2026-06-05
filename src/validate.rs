@@ -21,8 +21,6 @@ struct GdTag {
     kind: Option<String>,
     #[serde(rename = "Classification")]
     classification: Option<String>,
-    #[serde(rename = "Group")]
-    group: Option<String>,
 }
 
 /// Types our engine currently attempts to infer; everything else in
@@ -59,14 +57,12 @@ pub fn run(inferred: &HashMap<String, TagInfo>, filter_path: &Path) {
     // Agreement among covered tags.
     let mut agree_type = 0usize;
     let mut agree_class = 0usize;
-    let mut agree_group = 0usize;
     let mut agree_all = 0usize;
 
     // Confusion: ground-truth Type -> our Type, with counts.
-    let mut type_confusion: BTreeMap<(&str, String), usize> = BTreeMap::new();
+    let mut type_confusion: BTreeMap<(&str, &str), usize> = BTreeMap::new();
     // A few concrete mismatches to eyeball.
     let mut class_mismatches: Vec<(String, String, String)> = Vec::new();
-    let mut group_mismatches: Vec<(String, String, String)> = Vec::new();
 
     for (tag, gt) in &in_scope {
         let gt_type = gt.kind.as_deref().unwrap_or("");
@@ -76,18 +72,17 @@ pub fn run(inferred: &HashMap<String, TagInfo>, filter_path: &Path) {
         };
         covered += 1;
 
-        let t_ok = got.kind == gt_type;
+        let t_ok = got.kind.as_str() == gt_type;
         let c_ok = gt
             .classification
             .as_deref()
-            .is_none_or(|c| c == got.classification);
-        let g_ok = gt.group.as_deref().is_none_or(|g| g == got.group);
+            .is_none_or(|c| c == got.rarity.as_str());
 
         if t_ok {
             agree_type += 1;
         } else {
             *type_confusion
-                .entry((gt_type, got.kind.clone()))
+                .entry((gt_type, got.kind.as_str()))
                 .or_default() += 1;
         }
         if c_ok {
@@ -96,19 +91,10 @@ pub fn run(inferred: &HashMap<String, TagInfo>, filter_path: &Path) {
             class_mismatches.push((
                 (*tag).clone(),
                 gt.classification.clone().unwrap_or_default(),
-                got.classification.clone(),
+                got.rarity.as_str().to_string(),
             ));
         }
-        if g_ok {
-            agree_group += 1;
-        } else if group_mismatches.len() < 15 {
-            group_mismatches.push((
-                (*tag).clone(),
-                gt.group.clone().unwrap_or_default(),
-                got.group.clone(),
-            ));
-        }
-        if t_ok && c_ok && g_ok {
+        if t_ok && c_ok {
             agree_all += 1;
         }
     }
@@ -141,8 +127,7 @@ pub fn run(inferred: &HashMap<String, TagInfo>, filter_path: &Path) {
     println!("agreement among {covered} covered tags:");
     println!("  Type:            {:.1}%", pct(agree_type, covered));
     println!("  Classification:  {:.1}%", pct(agree_class, covered));
-    println!("  Group:           {:.1}%", pct(agree_group, covered));
-    println!("  all three:       {:.1}%", pct(agree_all, covered));
+    println!("  both:            {:.1}%", pct(agree_all, covered));
 
     if !type_confusion.is_empty() {
         println!();
@@ -155,13 +140,6 @@ pub fn run(inferred: &HashMap<String, TagInfo>, filter_path: &Path) {
         println!();
         println!("sample Classification mismatches (tag: truth -> inferred):");
         for (tag, gt, got) in &class_mismatches {
-            println!("  {tag}: {gt} -> {got}");
-        }
-    }
-    if !group_mismatches.is_empty() {
-        println!();
-        println!("sample Group mismatches (tag: truth -> inferred):");
-        for (tag, gt, got) in &group_mismatches {
             println!("  {tag}: {gt} -> {got}");
         }
     }
