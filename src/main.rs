@@ -2,8 +2,12 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 
+mod conflicts;
 mod db;
 mod infer;
+mod loot_refs;
+mod mi_signal;
+mod tags;
 mod validate;
 
 /// Default location of WanezGD_Tools' ground-truth tag database.
@@ -30,15 +34,25 @@ enum Command {
         #[arg(short = 'g', long)]
         gd_filter: Option<PathBuf>,
     },
+    /// Report rarity-ambiguous tags (awakened/upgraded variants reusing a tag).
+    Conflicts,
+    /// Print tag = value for every tag whose value contains NEEDLE.
+    Grep { needle: String },
+    /// Print, per item tag, which loot-table areas reference it (JSON).
+    LootRefs,
+    /// Dump candidate MI signals per tag (JSON).
+    MiSignal,
+    /// Find records whose any field value contains NEEDLE.
+    Refs { needle: String },
 }
 
 fn main() {
     let args = Args::parse();
     let mut dbs = db::open_all();
-    let tags = infer::infer(&mut dbs);
 
     match args.cmd {
         Command::Infer { filter } => {
+            let tags = infer::infer(&mut dbs);
             let filtered: std::collections::BTreeMap<_, _> = tags
                 .iter()
                 .filter(|(tag, _)| filter.as_ref().is_none_or(|f| tag.contains(f.as_str())))
@@ -46,8 +60,14 @@ fn main() {
             println!("{}", serde_json::to_string_pretty(&filtered).unwrap());
         }
         Command::Validate { gd_filter } => {
+            let tags = infer::infer(&mut dbs);
             let path = gd_filter.unwrap_or_else(|| PathBuf::from(DEFAULT_FILTER));
             validate::run(&tags, &path);
         }
+        Command::Conflicts => conflicts::run(&mut dbs),
+        Command::Grep { needle } => tags::grep(&needle),
+        Command::LootRefs => loot_refs::run(&mut dbs),
+        Command::MiSignal => mi_signal::run(&mut dbs),
+        Command::Refs { needle } => mi_signal::refs(&mut dbs, &needle),
     }
 }
