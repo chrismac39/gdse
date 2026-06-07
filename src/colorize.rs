@@ -17,6 +17,7 @@ use lib_gddb::arz::Database;
 use crate::color;
 use crate::db::install_path;
 use crate::infer;
+use crate::property;
 
 /// English text bundles, base game + expansions, in load order.
 const TEXT_ARCS: [&str; 4] = [
@@ -73,12 +74,17 @@ pub fn run<T: BufRead + Seek>(dbs: &mut [Database<T>], out_dir: &Path) {
     );
 }
 
-/// Builds the tag -> color-letter map for every tag the active preset colors.
+/// Builds the tag -> color-letter map for every tag the active preset colors:
+/// DB-inferred item / affix / MI tags, plus the curated Property (damage-type)
+/// tags. Property values are read live from the game text, so they're colored
+/// in place by `recolor_file` like any other tag.
 fn color_map<T: BufRead + Seek>(dbs: &mut [Database<T>]) -> HashMap<String, char> {
-    infer::infer(dbs)
+    let mut map: HashMap<String, char> = infer::infer(dbs)
         .into_iter()
         .filter_map(|(tag, info)| color::color_for(&info).map(|c| (tag, c)))
-        .collect()
+        .collect();
+    map.extend(property::colors().into_iter().map(|(tag, c)| (tag.to_string(), c)));
+    map
 }
 
 /// Rewrites one `.txt` file's content, recoloring each line whose tag is in
@@ -91,7 +97,12 @@ fn recolor_file(text: &str, colors: &HashMap<String, char>) -> (String, usize) {
         let (line, eol) = split_eol(segment);
         if let Some((tag, value)) = line.split_once('=') {
             if let Some(&color) = colors.get(tag) {
-                let new_value = apply_color(value, color);
+                let mut new_value = apply_color(value, color);
+                // Conversion labels carry no placeholder, so the color would
+                // bleed to the line's end; close it with `{^E}` (WanezGD's rule).
+                if tag.contains("Conversion") {
+                    new_value.push_str("{^E}");
+                }
                 if new_value != value {
                     colored += 1;
                 }

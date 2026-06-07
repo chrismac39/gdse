@@ -10,6 +10,7 @@ mod infer;
 mod keywords;
 mod loot_refs;
 mod mi_signal;
+mod property;
 mod tags;
 mod validate;
 
