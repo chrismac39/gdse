@@ -43,6 +43,9 @@ enum Command {
         /// Directory to write the colored .txt files into.
         #[arg(short, long, default_value = "out/text_en")]
         out: PathBuf,
+        /// Color Monster Infrequents by plain rarity (no distinct olive cue).
+        #[arg(long)]
+        plain_mi: bool,
     },
     /// Report rarity-ambiguous tags (awakened/upgraded variants reusing a tag).
     Conflicts,
@@ -74,7 +77,7 @@ fn main() {
             let path = gd_filter.unwrap_or_else(|| PathBuf::from(DEFAULT_FILTER));
             validate::run(&tags, &path);
         }
-        Command::Colorize { out } => colorize::run(&mut dbs, &out),
+        Command::Colorize { out, plain_mi } => colorize::run(&mut dbs, &out, !plain_mi),
         Command::Conflicts => conflicts::run(&mut dbs),
         Command::Grep { needle } => tags::grep(&needle),
         Command::LootRefs => loot_refs::run(&mut dbs),

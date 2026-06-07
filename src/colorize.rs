@@ -28,9 +28,10 @@ const TEXT_ARCS: [&str; 4] = [
 ];
 
 /// Infers tag colors, rewrites the text bundles, and writes the changed `.txt`
-/// files under `out_dir`. Returns nothing; prints a summary.
-pub fn run<T: BufRead + Seek>(dbs: &mut [Database<T>], out_dir: &Path) {
-    let colors = color_map(dbs);
+/// files under `out_dir`. When `mi_distinct` is false, Monster Infrequents are
+/// colored by plain rarity instead of the olive MI cue. Prints a summary.
+pub fn run<T: BufRead + Seek>(dbs: &mut [Database<T>], out_dir: &Path, mi_distinct: bool) {
+    let colors = color_map(dbs, mi_distinct);
 
     if let Err(e) = std::fs::create_dir_all(out_dir) {
         eprintln!("Could not create {}: {e}", out_dir.display());
@@ -78,10 +79,10 @@ pub fn run<T: BufRead + Seek>(dbs: &mut [Database<T>], out_dir: &Path) {
 /// DB-inferred item / affix / MI tags, plus the curated Property (damage-type)
 /// tags. Property values are read live from the game text, so they're colored
 /// in place by `recolor_file` like any other tag.
-fn color_map<T: BufRead + Seek>(dbs: &mut [Database<T>]) -> HashMap<String, char> {
+fn color_map<T: BufRead + Seek>(dbs: &mut [Database<T>], mi_distinct: bool) -> HashMap<String, char> {
     let mut map: HashMap<String, char> = infer::infer(dbs)
         .into_iter()
-        .filter_map(|(tag, info)| color::color_for(&info).map(|c| (tag, c)))
+        .filter_map(|(tag, info)| color::color_for(&info, mi_distinct).map(|c| (tag, c)))
         .collect();
     map.extend(property::colors().into_iter().map(|(tag, c)| (tag.to_string(), c)));
     map

@@ -36,11 +36,13 @@ impl Rule {
 /// absent on purpose — those names never take a prefix/suffix, so we leave them
 /// to the engine's native rarity color (see `color_for`'s `affixable` gate).
 ///
-/// The one MI distinction we make is Rare: a Rare MI reads olive instead of the
-/// regular-Rare green, so the Rare-MI rule comes first.
+/// The one MI distinction we optionally make is Rare: a Rare MI reads olive
+/// instead of the regular-Rare green. It's applied first and only when MI
+/// coloring is enabled; otherwise MIs fall through to the plain rarity rules
+/// (`ITEMS` includes `MiItem`) and color exactly like any item of that rarity.
 const ITEMS: &[Kind] = &[Kind::RegularItem, Kind::Affix, Kind::MiItem];
-const LIBRARY: &[Rule] = &[
-    use_rarity(&[Kind::MiItem], Rarity::Rare, 'l'),
+const MI_RULE: Rule = use_rarity(&[Kind::MiItem], Rarity::Rare, 'l');
+const RARITY_RULES: &[Rule] = &[
     use_rarity(ITEMS, Rarity::Common, 'w'),
     use_rarity(ITEMS, Rarity::Magical, 'y'),
     use_rarity(ITEMS, Rarity::Rare, 'g'),
@@ -68,9 +70,15 @@ const fn rarity_slice(rarity: Rarity) -> &'static [Rarity] {
 /// untouched. Base item names are only colored when they can take a name-
 /// altering affix (otherwise the engine's native rarity color is fine and there
 /// is no bleed to guard against); affix tags are always colored directly.
-pub fn color_for(info: &TagInfo) -> Option<char> {
+///
+/// When `mi_distinct` is true a Rare MI gets the olive cue; otherwise MIs are
+/// colored by plain rarity like any other item.
+pub fn color_for(info: &TagInfo, mi_distinct: bool) -> Option<char> {
     if matches!(info.kind, Kind::RegularItem | Kind::MiItem) && !info.affixable {
         return None;
     }
-    LIBRARY.iter().find(|r| r.matches(info)).map(|r| r.color)
+    if mi_distinct && MI_RULE.matches(info) {
+        return Some(MI_RULE.color);
+    }
+    RARITY_RULES.iter().find(|r| r.matches(info)).map(|r| r.color)
 }
