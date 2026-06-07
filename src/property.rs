@@ -14,6 +14,10 @@ const DATA: &str = include_str!("../data/properties_en.tsv");
 /// Each element's over-time variant shares the base element's color (Burn=Fire,
 /// Frostburn=Cold, Electrocute=Lightning, Poison=Acid, Decay=Vitality,
 /// Trauma=Physical, Bleeding=Pierce).
+///
+/// Scope is intentionally damage types only: the non-elemental `Attribute`
+/// (Physique/Cunning/…) and `Misc` (OA/DA/speeds/crit/XP/…) groups are left
+/// uncolored, so the colorizer does exactly two jobs — damage types and rarity.
 fn element_color(element: &str) -> Option<char> {
     Some(match element {
         "Physical" | "Trauma" => 'k',
@@ -26,8 +30,6 @@ fn element_color(element: &str) -> Option<char> {
         "Aether" => 'a',
         "Chaos" => 'p',
         "Elemental" => 'y',
-        "Attribute" => 'f',
-        "Misc" => 'x',
         _ => return None,
     })
 }
