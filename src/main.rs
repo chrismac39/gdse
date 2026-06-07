@@ -23,9 +23,10 @@ enum Command {
         /// Directory to write the colored .txt files into.
         #[arg(short, long, default_value = "out/text_en")]
         out: PathBuf,
-        /// Color Monster Infrequents by plain rarity (no distinct olive cue).
+        /// Give Monster Infrequents a distinct olive cue (off by default: MIs
+        /// take their plain rarity color).
         #[arg(long)]
-        plain_mi: bool,
+        mi: bool,
     },
 }
 
@@ -34,6 +35,6 @@ fn main() {
     let mut dbs = db::open_all();
 
     match args.cmd {
-        Command::Colorize { out, plain_mi } => colorize::run(&mut dbs, &out, !plain_mi),
+        Command::Colorize { out, mi } => colorize::run(&mut dbs, &out, mi),
     }
 }
