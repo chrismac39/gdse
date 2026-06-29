@@ -19,17 +19,23 @@ use crate::db::install_path;
 use crate::infer;
 use crate::property;
 
-/// English text bundles, base game + expansions, in load order.
-const TEXT_ARCS: [&str; 4] = [
-    "resources/Text_EN.arc",
-    "gdx1/resources/Text_EN.arc",
-    "gdx2/resources/Text_EN.arc",
-    "gdx3/resources/Text_EN.arc",
-];
+/// The text bundles for a language, base game + expansions, in load order. EN
+/// ships one arc per part; other languages bundle everything into the base arc
+/// (with `aom/`/`fg/` subdirs), so the missing per-expansion arcs are simply
+/// skipped when they don't exist.
+fn text_arcs(lang: &str) -> [String; 4] {
+    let up = lang.to_uppercase();
+    [
+        format!("resources/Text_{up}.arc"),
+        format!("gdx1/resources/Text_{up}.arc"),
+        format!("gdx2/resources/Text_{up}.arc"),
+        format!("gdx3/resources/Text_{up}.arc"),
+    ]
+}
 
-/// Infers tag colors, rewrites the text bundles, and writes the changed `.txt`
-/// files under `out_dir`, printing one line per file written.
-pub fn run<T: BufRead + Seek>(dbs: &mut [Database<T>], out_dir: &Path) {
+/// Infers tag colors, rewrites `lang`'s text bundles, and writes the changed
+/// `.txt` files under `out_dir`, printing one line per file written.
+pub fn run<T: BufRead + Seek>(dbs: &mut [Database<T>], out_dir: &Path, lang: &str) {
     let colors = color_map(dbs);
 
     if let Err(e) = std::fs::create_dir_all(out_dir) {
@@ -39,8 +45,8 @@ pub fn run<T: BufRead + Seek>(dbs: &mut [Database<T>], out_dir: &Path) {
 
     let base = install_path();
 
-    for rel in TEXT_ARCS {
-        let Ok(mut arc) = Archive::open(base.join(rel)) else {
+    for rel in text_arcs(lang) {
+        let Ok(mut arc) = Archive::open(base.join(&rel)) else {
             continue;
         };
         let Ok(records) = arc.iter_records() else {
@@ -57,6 +63,13 @@ pub fn run<T: BufRead + Seek>(dbs: &mut [Database<T>], out_dir: &Path) {
                 continue;
             }
             let dest = out_dir.join(&record.id);
+            // Non-EN bundles nest records under `aom/`/`fg/`; make those subdirs.
+            if let Some(parent) = dest.parent() {
+                if let Err(e) = std::fs::create_dir_all(parent) {
+                    eprintln!("Could not create {}: {e}", parent.display());
+                    std::process::exit(1);
+                }
+            }
             if let Err(e) = std::fs::write(&dest, rewritten) {
                 eprintln!("Could not write {}: {e}", dest.display());
                 std::process::exit(1);
@@ -155,8 +168,9 @@ fn apply_color(value: &str, color: char) -> String {
     if value.starts_with('|') {
         return insert_after_bar_digit(value, &cc);
     }
-    // Plain name: prepend, provided there's actually a letter to color.
-    if value.chars().any(|c| c.is_ascii_alphabetic()) {
+    // Plain name: prepend, provided there's actually a letter to color. Uses
+    // Unicode `is_alphabetic` so non-Latin names (CJK, Cyrillic, …) also match.
+    if value.chars().any(|c| c.is_alphabetic()) {
         return format!("{cc}{value}");
     }
     value.to_string()
