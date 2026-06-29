@@ -28,10 +28,9 @@ const TEXT_ARCS: [&str; 4] = [
 ];
 
 /// Infers tag colors, rewrites the text bundles, and writes the changed `.txt`
-/// files under `out_dir`. When `mi_distinct` is false, Monster Infrequents are
-/// colored by plain rarity instead of the olive MI cue. Prints a summary.
-pub fn run<T: BufRead + Seek>(dbs: &mut [Database<T>], out_dir: &Path, mi_distinct: bool) {
-    let colors = color_map(dbs, mi_distinct);
+/// files under `out_dir`, printing one line per file written.
+pub fn run<T: BufRead + Seek>(dbs: &mut [Database<T>], out_dir: &Path) {
+    let colors = color_map(dbs);
 
     if let Err(e) = std::fs::create_dir_all(out_dir) {
         eprintln!("Could not create {}: {e}", out_dir.display());
@@ -39,8 +38,6 @@ pub fn run<T: BufRead + Seek>(dbs: &mut [Database<T>], out_dir: &Path, mi_distin
     }
 
     let base = install_path();
-    let mut files_written = 0usize;
-    let mut tags_colored = 0usize;
 
     for rel in TEXT_ARCS {
         let Ok(mut arc) = Archive::open(base.join(rel)) else {
@@ -64,27 +61,25 @@ pub fn run<T: BufRead + Seek>(dbs: &mut [Database<T>], out_dir: &Path, mi_distin
                 eprintln!("Could not write {}: {e}", dest.display());
                 std::process::exit(1);
             }
-            files_written += 1;
-            tags_colored += colored;
+            println!("{} ({colored} tags)", dest.display());
         }
     }
-
-    println!(
-        "Colored {tags_colored} tags across {files_written} files -> {}",
-        out_dir.display()
-    );
 }
 
 /// Builds the tag -> color-letter map for every tag the active preset colors:
-/// DB-inferred item / affix / MI tags, plus the curated Property (damage-type)
-/// tags. Property values are read live from the game text, so they're colored
-/// in place by `recolor_file` like any other tag.
-fn color_map<T: BufRead + Seek>(dbs: &mut [Database<T>], mi_distinct: bool) -> HashMap<String, char> {
+/// DB-inferred item / affix tags, plus the curated Property (damage-type) tags.
+/// Property values are read live from the game text, so they're colored in place
+/// by `recolor_file` like any other tag.
+fn color_map<T: BufRead + Seek>(dbs: &mut [Database<T>]) -> HashMap<String, char> {
     let mut map: HashMap<String, char> = infer::infer(dbs)
         .into_iter()
-        .filter_map(|(tag, info)| color::color_for(&info, mi_distinct).map(|c| (tag, c)))
+        .filter_map(|(tag, info)| color::color_for(&info).map(|c| (tag, c)))
         .collect();
-    map.extend(property::colors().into_iter().map(|(tag, c)| (tag.to_string(), c)));
+    map.extend(
+        property::colors()
+            .into_iter()
+            .map(|(tag, c)| (tag.to_string(), c)),
+    );
     map
 }
 
@@ -213,7 +208,10 @@ fn insert_after_brackets(s: &str, cc: &str) -> String {
             // Only after a `[...]` that held letters; cheap check: the char
             // before `]` was a letter.
             if let Some(open) = out.rfind('[') {
-                if out[open + 1..out.len() - 1].chars().all(|c| c.is_ascii_alphabetic()) {
+                if out[open + 1..out.len() - 1]
+                    .chars()
+                    .all(|c| c.is_ascii_alphabetic())
+                {
                     out.push_str(cc);
                 }
             }

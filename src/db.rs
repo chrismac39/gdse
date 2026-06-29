@@ -36,10 +36,7 @@ pub fn open_all() -> Vec<Database<BufReader<File>>> {
         .filter_map(|rel| Database::open(base.join(rel)).ok())
         .collect();
     if dbs.is_empty() {
-        eprintln!(
-            "Could not read any database files under {}",
-            base.display()
-        );
+        eprintln!("Could not read any database files under {}", base.display());
         std::process::exit(1);
     }
     dbs

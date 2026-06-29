@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use clap::{Parser, Subcommand};
+use clap::Parser;
 
 mod color;
 mod colorize;
@@ -9,32 +9,22 @@ mod infer;
 mod keywords;
 mod property;
 
+/// Reads Grim Dawn resource files and recolors text tags to make damage
+/// types and affix rarity legible at a glance.
 #[derive(Parser, Debug)]
-#[command(version, about = "Grim Dawn rainbow-filter tooling (Rust/Linux)", arg_required_else_help = true)]
+#[command(version, about)]
 struct Args {
-    #[command(subcommand)]
-    cmd: Command,
-}
-
-#[derive(Subcommand, Debug)]
-enum Command {
-    /// Bake color codes into the tag text and write the rewritten .txt files.
-    Colorize {
-        /// Directory to write the colored .txt files into.
-        #[arg(short, long, default_value = "out/text_en")]
-        out: PathBuf,
-        /// Give Monster Infrequents a distinct olive cue (off by default: MIs
-        /// take their plain rarity color).
-        #[arg(long)]
-        mi: bool,
-    },
+    /// Path to write text resource overrides to
+    /// [default: $GRIM_DAWN_INSTALL_PATH/settings/text_en/].
+    #[arg(short, long)]
+    out: Option<PathBuf>,
 }
 
 fn main() {
     let args = Args::parse();
     let mut dbs = db::open_all();
-
-    match args.cmd {
-        Command::Colorize { out, mi } => colorize::run(&mut dbs, &out, mi),
-    }
+    let out = args
+        .out
+        .unwrap_or_else(|| db::install_path().join("settings/text_en"));
+    colorize::run(&mut dbs, &out);
 }
