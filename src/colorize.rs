@@ -66,21 +66,14 @@ pub fn run<T: BufRead + Seek>(dbs: &mut [Database<T>], out_dir: &Path) {
     }
 }
 
-/// Builds the tag -> color-letter map for every tag the active preset colors:
-/// DB-inferred item / affix tags, plus the curated Property (damage-type) tags.
-/// Property values are read live from the game text, so they're colored in place
-/// by `recolor_file` like any other tag.
+/// Builds the tag -> color-letter map for the DB-inferred item / affix tags.
+/// Damage-type Property tags aren't listed here: they're recognized by name on
+/// the fly in `recolor_file` (see `property::color_for`).
 fn color_map<T: BufRead + Seek>(dbs: &mut [Database<T>]) -> HashMap<String, char> {
-    let mut map: HashMap<String, char> = infer::infer(dbs)
+    infer::infer(dbs)
         .into_iter()
         .filter_map(|(tag, info)| color::color_for(&info).map(|c| (tag, c)))
-        .collect();
-    map.extend(
-        property::colors()
-            .into_iter()
-            .map(|(tag, c)| (tag.to_string(), c)),
-    );
-    map
+        .collect()
 }
 
 /// Rewrites one `.txt` file's content, recoloring each line whose tag is in
@@ -92,7 +85,12 @@ fn recolor_file(text: &str, colors: &HashMap<String, char>) -> (String, usize) {
     for segment in text.split_inclusive('\n') {
         let (line, eol) = split_eol(segment);
         if let Some((tag, value)) = line.split_once('=') {
-            if let Some(&color) = colors.get(tag) {
+            // DB-inferred item/affix color, else the name-derived Property color.
+            if let Some(color) = colors
+                .get(tag)
+                .copied()
+                .or_else(|| property::color_for(tag))
+            {
                 let mut new_value = apply_color(value, color);
                 // Conversion labels carry no placeholder, so the color would
                 // bleed to the line's end; close it with `{^E}` (WanezGD's rule).

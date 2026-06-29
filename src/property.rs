@@ -1,45 +1,79 @@
-//! Vendored damage-type / Property tag color map.
+//! Damage-type Property tag coloring, derived from the tag NAME alone.
 //!
-//! Which tags are damage / attribute / misc Property labels, and which element
-//! each belongs to, is curated from gd-filter (`data/properties_en.tsv`, one
-//! `tag<TAB>element` per line). That classification is the only piece not
-//! derivable from the game data. The label TEXT itself is read live from the
-//! game's `tags_ui.txt` by the colorizer, so this stays gdx3-correct with no
-//! vendored text snapshot — tags absent from the player's game simply never
-//! match and are left alone.
+//! Grim Dawn's stat-label tags follow a rigid naming convention: a structural
+//! prefix (`Damage`/`Defense`/`Retaliation`/`tagConversion`/`tagDamageBase`)
+//! plus the damage element's base token (`Fire`, `Cold`, `Aether`, …). The
+//! over-time and acid variants reuse the base token in the name — `Burn` labels
+//! are `DamageDuration*Fire*`, `Acid` is `*Poison*`, `Trauma` is `*Physical*`,
+//! `Frostburn` is `*Cold*`, `Decay`/`Vitality` is `*Life*` — so this small base
+//! vocabulary covers every damage-type label. Tag names are English keys
+//! regardless of the localization, so the rule is language-independent and needs
+//! no vendored data. Non-damage stat labels (attributes, OA/DA, speeds, …) carry
+//! no element token and so are left untouched.
 
-const DATA: &str = include_str!("../data/properties_en.tsv");
+/// Structural prefixes that mark a damage / resistance / retaliation /
+/// conversion stat label. A property tag always starts with one of these.
+const PREFIXES: [&str; 5] = [
+    "Damage",
+    "Defense",
+    "Retaliation",
+    "tagConversion",
+    "tagDamageBase",
+];
 
-/// element -> color letter, ported from Full Rainbow's `Core.Property.*` rules.
-/// Each element's over-time variant shares the base element's color (Burn=Fire,
-/// Frostburn=Cold, Electrocute=Lightning, Poison=Acid, Decay=Vitality,
-/// Trauma=Physical, Bleeding=Pierce).
-///
-/// Scope is intentionally damage types only: the non-elemental `Attribute`
-/// (Physique/Cunning/…) and `Misc` (OA/DA/speeds/crit/XP/…) groups are left
-/// uncolored, so the colorizer does exactly two jobs — damage types and rarity.
-fn element_color(element: &str) -> Option<char> {
-    Some(match element {
-        "Physical" | "Trauma" => 'k',
-        "Pierce" | "Bleeding" => 'r',
-        "Fire" | "Burn" => 'o',
-        "Cold" | "Frostburn" => 'c',
-        "Lightning" | "Electrocute" => 'z',
-        "Acid" | "Poison" => 'l',
-        "Vitality" | "Decay" => 'm',
-        "Aether" => 'a',
-        "Chaos" => 'p',
-        "Elemental" => 'y',
-        _ => return None,
-    })
-}
+/// Base Grim Dawn element tokens embedded in stat-label tag names, mapped to the
+/// Full Rainbow `Core.Property.*` element color. Over-time variants share the
+/// base element's color, so e.g. `Fire` covers Burn and `Poison` covers Acid.
+const TOKENS: [(&str, char); 12] = [
+    ("Physical", 'k'),
+    ("Pierce", 'r'),
+    ("Bleeding", 'r'),
+    ("Fire", 'o'),
+    ("Cold", 'c'),
+    ("Lightning", 'z'),
+    ("Poison", 'l'),
+    ("Vitality", 'm'),
+    ("Life", 'm'),
+    ("Aether", 'a'),
+    ("Chaos", 'p'),
+    ("Elemental", 'y'),
+];
 
-/// `(tag, color)` for every Property tag with a known element color.
-pub fn colors() -> Vec<(&'static str, char)> {
-    DATA.lines()
-        .filter_map(|line| {
-            let (tag, element) = line.split_once('\t')?;
-            Some((tag, element_color(element)?))
-        })
-        .collect()
+/// The color letter for a damage-type Property tag, or `None` if `tag` isn't one.
+pub fn color_for(tag: &str) -> Option<char> {
+    if !PREFIXES.iter().any(|p| tag.starts_with(p)) {
+        return None;
+    }
+    // `*Reduction*` tags are "Reduced target's X Damage/Resistance" enemy-debuff
+    // labels — they name an element but describe a debuff you inflict, not the
+    // item's own damage/resist, so coloring them by element would mislead.
+    if tag.contains("Reduction") {
+        return None;
+    }
+    // `DamageModifierPierceRatio[R]` ("Increases Armor Piercing by X%") is a
+    // deprecated stat the game no longer uses (Greg confirmed 2026-06). The live
+    // Armor Piercing label is `DamageBasePierceRatio`, which is kept.
+    if tag.starts_with("DamageModifierPierceRatio") {
+        return None;
+    }
+    // Resist-duration labels ("Reduction in Burn Duration", "Wound Duration
+    // Reduction") are descriptive phrases, not plain element labels. Coloring
+    // the whole sentence reads badly, and coloring only the element word would
+    // need English-only value parsing — so skip them entirely (Greg, 2026-06).
+    if tag.starts_with("Defense") && tag.contains("Duration") {
+        return None;
+    }
+    // The `Life`/`Vitality` token doubles as the health pool: Life Leech and
+    // %-Health stats name it but aren't the Vitality damage type. Leave those
+    // uncolored (they're sustain/utility, like the dropped Misc group).
+    if tag.contains("Leech")
+        || tag.contains("Leach")
+        || (tag.contains("Percent") && tag.contains("Life"))
+    {
+        return None;
+    }
+    TOKENS
+        .iter()
+        .find(|(tok, _)| tag.contains(tok))
+        .map(|(_, color)| *color)
 }
