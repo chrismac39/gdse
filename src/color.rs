@@ -24,6 +24,6 @@ pub fn color_for(info: &TagInfo) -> Option<char> {
         Rarity::Common => Some('w'),
         Rarity::Magical => Some('y'),
         Rarity::Rare => Some('g'),
-        Rarity::Broken | Rarity::Epic | Rarity::Legendary => None,
+        Rarity::Epic | Rarity::Legendary => None,
     }
 }

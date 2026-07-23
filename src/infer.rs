@@ -1,9 +1,9 @@
 //! Inferring WanezGD-style tag keywords from the Grim Dawn `.arz` database.
 //!
 //! This replaces WanezGD_Tools' hand-maintained `gd-filter.json` `Tags` map.
-//! For each tag we infer a `Kind` (Regular Item or Affix) and a `Rarity`
-//! (`itemClassification`); for regular items the rarity is the mode across the
-//! tag's records, so awakened/upgraded variants don't override the base tier.
+//! For each tag we infer a `Kind` (Item or Affix) and a `Rarity`
+//! (`itemClassification`); when a generic base name is shared across items of
+//! different rarities, the tag's rarity is the most-frequent (mode) one.
 
 use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, Seek};
@@ -47,10 +47,10 @@ pub fn infer<T: BufRead + Seek>(dbs: &mut [Database<T>]) -> HashMap<String, TagI
     let records = db::iter_records(dbs, |id| id.starts_with(ITEMS_PREFIX));
 
     let mut tags: HashMap<String, TagInfo> = HashMap::new();
-    // Per item tag: rarity -> #records, over all records and over base records
-    // (excluding awakened/upgraded variants). Used to pick the canonical rarity.
+    // Per item tag: rarity -> #records. A handful of generic base-name tags are
+    // shared across items of different rarities (e.g. a name used by both Rare
+    // and Epic items), so we pick the most-frequent (mode) rarity.
     let mut rarity_counts: HashMap<String, HashMap<Rarity, u32>> = HashMap::new();
-    let mut base_rarity_counts: HashMap<String, HashMap<Rarity, u32>> = HashMap::new();
     // item tags with at least one record under records/items/faction/.
     let mut faction_tags: HashSet<String> = HashSet::new();
     // item tags with at least one equippable-gear record (can roll name affixes).
@@ -61,25 +61,15 @@ pub fn infer<T: BufRead + Seek>(dbs: &mut [Database<T>]) -> HashMap<String, TagI
         if id.starts_with(PREFIX_PATH) || id.starts_with(SUFFIX_PATH) {
             classify_affix(record, &mut tags);
         } else {
-            accumulate_item(
-                record,
-                &mut rarity_counts,
-                &mut base_rarity_counts,
-                &mut faction_tags,
-                &mut gear_tags,
-            );
+            accumulate_item(record, &mut rarity_counts, &mut faction_tags, &mut gear_tags);
         }
     }
 
-    // Build Regular Item entries, choosing each tag's most-frequent (mode)
-    // rarity. Awakened/upgraded variants are excluded so e.g. a Legendary
-    // awakened copy doesn't override an Epic base (and the lone Rare variant of
-    // a mostly-Common item doesn't win).
-    for (tag, all_counts) in &rarity_counts {
-        let counts = base_rarity_counts
-            .get(tag)
-            .filter(|c| !c.is_empty())
-            .unwrap_or(all_counts);
+    // Build item entries, choosing each tag's most-frequent (mode) rarity. We do
+    // NOT special-case awakened/upgraded variants: they're always Epic/Legendary
+    // (never colored), so including them never changes a colored result — only
+    // the colorable Common/Magical/Rare tiers matter here.
+    for (tag, counts) in &rarity_counts {
         let Some(rarity) = mode_rarity(counts) else {
             continue;
         };
@@ -120,13 +110,12 @@ fn classify_affix(record: &Record, tags: &mut HashMap<String, TagInfo>) {
     );
 }
 
-/// Accumulates an item record into the per-tag rarity tallies, the faction set,
-/// and the gear set. The final Regular Item entry (with the mode rarity) is
-/// built after the scan.
+/// Accumulates an item record into the per-tag rarity tally, the faction set,
+/// and the gear set. The final item entry (with the mode rarity) is built after
+/// the scan.
 fn accumulate_item(
     record: &Record,
     rarity_counts: &mut HashMap<String, HashMap<Rarity, u32>>,
-    base_rarity_counts: &mut HashMap<String, HashMap<Rarity, u32>>,
     faction_tags: &mut HashSet<String>,
     gear_tags: &mut HashSet<String>,
 ) {
@@ -151,14 +140,6 @@ fn accumulate_item(
         .or_default()
         .entry(rarity)
         .or_default() += 1;
-    let is_variant = record.id.contains("/awakened/") || record.id.contains("/upgraded/");
-    if !is_variant {
-        *base_rarity_counts
-            .entry(tag.clone())
-            .or_default()
-            .entry(rarity)
-            .or_default() += 1;
-    }
     if record.id.starts_with(FACTION_PREFIX) {
         faction_tags.insert(tag);
     }
