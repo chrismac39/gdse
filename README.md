@@ -49,9 +49,9 @@ There are not currently any precompiled binaries available. You must build from 
 you can:
 
 1. [Install rust](https://www.rust-lang.org/tools/install)
-2. git clone git@github.com:gregates/gdse.git
-3. cd gdse
-4. cargo run --release
+2. `git clone git@github.com:gregates/gdse.git`
+3. `cd gdse`
+4. `cargo run --release`
 
 You must set GRIM_DAWN_INSTALL_PATH environment to the path to your game installation for the
 program to work. By default, it will write the modified text resources to
