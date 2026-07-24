@@ -56,4 +56,4 @@ you can:
 You must set GRIM_DAWN_INSTALL_PATH environment to the path to your game installation for the
 program to work. By default, it will write the modified text resources to
 `$GRIM_DAWN_INSTALL_PATH/settings/`. Re-run any time Grim Dawn gets patched, if you see any missing
-tag errors.
+tag errors or incorrect colorings.
