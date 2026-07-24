@@ -7,7 +7,10 @@ mod colorize;
 mod db;
 mod infer;
 mod keywords;
+mod palette;
 mod property;
+
+use property::DamageColors;
 
 /// Reads Grim Dawn resource files and recolors text tags to make damage
 /// types and affix rarity legible at a glance.
@@ -21,14 +24,24 @@ struct Args {
     /// [default: $GRIM_DAWN_INSTALL_PATH/settings/text_<language>/].
     #[arg(short, long)]
     out: Option<PathBuf>,
+    /// Paints Pierce red, like rainbow filter, not pink.
+    #[arg(long)]
+    rainbow_filter_damage_colors: bool,
 }
 
 fn main() {
     let args = Args::parse();
     let lang = args.language.to_lowercase();
     let mut dbs = db::open_all();
-    let out = args
-        .out
-        .unwrap_or_else(|| db::install_path().join("settings").join(format!("text_{lang}")));
-    colorize::run(&mut dbs, &out, &lang);
+    let out = args.out.unwrap_or_else(|| {
+        db::install_path()
+            .join("settings")
+            .join(format!("text_{lang}"))
+    });
+    let damage_colors = if args.rainbow_filter_damage_colors {
+        DamageColors::RainbowFilter
+    } else {
+        DamageColors::Default
+    };
+    colorize::run(&mut dbs, &out, &lang, damage_colors);
 }

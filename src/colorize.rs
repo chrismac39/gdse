@@ -17,7 +17,7 @@ use lib_gddb::arz::Database;
 use crate::color;
 use crate::db::install_path;
 use crate::infer;
-use crate::property;
+use crate::property::{self, DamageColors};
 
 /// The text bundles for a language, base game + expansions, in load order. EN
 /// ships one arc per part; other languages bundle everything into the base arc
@@ -35,7 +35,12 @@ fn text_arcs(lang: &str) -> [String; 4] {
 
 /// Infers tag colors, rewrites `lang`'s text bundles, and writes the changed
 /// `.txt` files under `out_dir`, printing one line per file written.
-pub fn run<T: BufRead + Seek>(dbs: &mut [Database<T>], out_dir: &Path, lang: &str) {
+pub fn run<T: BufRead + Seek>(
+    dbs: &mut [Database<T>],
+    out_dir: &Path,
+    lang: &str,
+    damage_colors: DamageColors,
+) {
     let colors = color_map(dbs);
 
     if let Err(e) = std::fs::create_dir_all(out_dir) {
@@ -58,7 +63,7 @@ pub fn run<T: BufRead + Seek>(dbs: &mut [Database<T>], out_dir: &Path, lang: &st
                 continue;
             }
             let text = String::from_utf8_lossy(&record.data);
-            let (rewritten, colored) = recolor_file(&text, &colors);
+            let (rewritten, colored) = recolor_file(&text, &colors, damage_colors);
             if colored == 0 {
                 continue;
             }
@@ -92,7 +97,11 @@ fn color_map<T: BufRead + Seek>(dbs: &mut [Database<T>]) -> HashMap<String, char
 /// Rewrites one `.txt` file's content, recoloring each line whose tag is in
 /// `colors`. Returns the new content and how many tag values actually changed.
 /// Comments, blank lines, and untouched tags are preserved verbatim.
-fn recolor_file(text: &str, colors: &HashMap<String, char>) -> (String, usize) {
+fn recolor_file(
+    text: &str,
+    colors: &HashMap<String, char>,
+    damage_colors: DamageColors,
+) -> (String, usize) {
     let mut out = String::with_capacity(text.len());
     let mut colored = 0usize;
     for segment in text.split_inclusive('\n') {
@@ -102,7 +111,7 @@ fn recolor_file(text: &str, colors: &HashMap<String, char>) -> (String, usize) {
             if let Some(color) = colors
                 .get(tag)
                 .copied()
-                .or_else(|| property::color_for(tag))
+                .or_else(|| property::color_for(tag, damage_colors))
             {
                 let mut new_value = apply_color(value, color);
                 // Conversion labels carry no placeholder, so the color would

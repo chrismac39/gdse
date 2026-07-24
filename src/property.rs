@@ -11,6 +11,10 @@
 //! no vendored data. Non-damage stat labels (attributes, OA/DA, speeds, …) carry
 //! no element token and so are left untouched.
 
+use crate::palette::{
+    AQUA, COBALT, CYAN, FUSHIA, KHAKI, MAROON, OLIVE, ORANGE, PURPLE, RED, YELLOW,
+};
+
 /// Structural prefixes that mark a damage / resistance / retaliation /
 /// conversion stat label. A property tag always starts with one of these.
 const PREFIXES: [&str; 5] = [
@@ -21,26 +25,43 @@ const PREFIXES: [&str; 5] = [
     "tagDamageBase",
 ];
 
+/// Which damage-type palette to paint with.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DamageColors {
+    /// gdse's default: Pierce is Fushia, so it reads apart from Bleeding's Red.
+    Default,
+    /// Full Rainbow's familiar palette, where Pierce and Bleeding are both Red.
+    RainbowFilter,
+}
+
 /// Base Grim Dawn element tokens embedded in stat-label tag names, mapped to the
 /// Full Rainbow `Core.Property.*` element color. Over-time variants share the
 /// base element's color, so e.g. `Fire` covers Burn and `Poison` covers Acid.
+///
+/// Pierce is the one departure from Full Rainbow, which paints it and Bleeding
+/// both Red and so makes the two indistinguishable. Pierce takes Fushia — the
+/// only bright palette slot with no other use, and far enough from Purple
+/// (Chaos), its nearest neighbour, to read clearly. Teal was the other free slot
+/// but sits between Cyan (Cold) and Aqua (Aether), so it would have traded one
+/// collision for another. [`DamageColors::RainbowFilter`] restores the familiar
+/// Red.
 const TOKENS: [(&str, char); 12] = [
-    ("Physical", 'k'),
-    ("Pierce", 'r'),
-    ("Bleeding", 'r'),
-    ("Fire", 'o'),
-    ("Cold", 'c'),
-    ("Lightning", 'z'),
-    ("Poison", 'l'),
-    ("Vitality", 'm'),
-    ("Life", 'm'),
-    ("Aether", 'a'),
-    ("Chaos", 'p'),
-    ("Elemental", 'y'),
+    ("Physical", KHAKI),
+    ("Pierce", FUSHIA),
+    ("Bleeding", RED),
+    ("Fire", ORANGE),
+    ("Cold", CYAN),
+    ("Lightning", COBALT),
+    ("Poison", OLIVE),
+    ("Vitality", MAROON),
+    ("Life", MAROON),
+    ("Aether", AQUA),
+    ("Chaos", PURPLE),
+    ("Elemental", YELLOW),
 ];
 
 /// The color letter for a damage-type Property tag, or `None` if `tag` isn't one.
-pub fn color_for(tag: &str) -> Option<char> {
+pub fn color_for(tag: &str, damage_colors: DamageColors) -> Option<char> {
     if !PREFIXES.iter().any(|p| tag.starts_with(p)) {
         return None;
     }
@@ -72,8 +93,14 @@ pub fn color_for(tag: &str) -> Option<char> {
     {
         return None;
     }
-    TOKENS
+    let color = TOKENS
         .iter()
         .find(|(tok, _)| tag.contains(tok))
-        .map(|(_, color)| *color)
+        .map(|(_, color)| *color)?;
+    // Opt back in to Full Rainbow's Red Pierce. Fushia is the only entry gdse
+    // departs on, so folding it back to Red is the whole of the flag.
+    if damage_colors == DamageColors::RainbowFilter && color == FUSHIA {
+        return Some(RED);
+    }
+    Some(color)
 }

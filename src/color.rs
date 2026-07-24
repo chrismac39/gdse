@@ -3,7 +3,7 @@
 //! scope-decision memory).
 //!
 //! Only item & affix rarity is colored, and only the three rarities that can
-//! carry a name-altering affix: Common=w, Magical=y, Rare=g. Epic/Legendary
+//! carry a name-altering affix: Common=White, Magical=Yellow, Rare=Green. Epic/Legendary
 //! names never take a prefix/suffix, so they're left to the engine's native
 //! rarity color. Faction / Set / Skill / Quality / Style get no special cue
 //! either, matching Full Rainbow. Damage-type Property colors live separately in
@@ -11,6 +11,7 @@
 
 use crate::infer::TagInfo;
 use crate::keywords::{Kind, Rarity};
+use crate::palette::{GREEN, WHITE, YELLOW};
 
 /// The color letter to bake into the tag's value, or `None` if it's left
 /// untouched. Base item names are only colored when they can take a name-
@@ -21,9 +22,9 @@ pub fn color_for(info: &TagInfo) -> Option<char> {
         return None;
     }
     match info.rarity {
-        Rarity::Common => Some('w'),
-        Rarity::Magical => Some('y'),
-        Rarity::Rare => Some('g'),
+        Rarity::Common => Some(WHITE),
+        Rarity::Magical => Some(YELLOW),
+        Rarity::Rare => Some(GREEN),
         Rarity::Epic | Rarity::Legendary => None,
     }
 }
