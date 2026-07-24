@@ -23,6 +23,12 @@ const ITEM_RARITY: &str = "itemClassification";
 const ITEM_CLASS: &str = "Class";
 const AFFIX_TAG: &str = "lootRandomizerName";
 
+/// Fields naming an extra word the game splices into an item's displayed name,
+/// between the prefix affix and the base name ("Mighty *Hinterland* Coronet",
+/// "Mighty *Tarnished* Gladius"). Armor uses the style field, weapons and
+/// shields the quality one.
+const NAME_PART_FIELDS: [&str; 2] = ["itemStyleTag", "itemQualityTag"];
+
 /// `Class` prefixes for equippable gear (weapons, shields/offhands, armor,
 /// jewelry) — the items that can roll a name-altering prefix/suffix. Everything
 /// else (relics=ItemArtifact, components=QuestItem, augments, etc.) cannot.
@@ -41,27 +47,35 @@ pub struct TagInfo {
     pub affixable: bool,
 }
 
+/// What the scan over the item records accumulates, before tags are built.
+#[derive(Default)]
+struct Scan {
+    /// Per item tag: rarity -> #records. A handful of generic base-name tags are
+    /// shared across items of different rarities (e.g. a name used by both Rare
+    /// and Epic items), so we pick the most-frequent (mode) rarity.
+    rarity_counts: HashMap<String, HashMap<Rarity, u32>>,
+    /// Item tags with at least one record under `records/items/faction/`.
+    faction_tags: HashSet<String>,
+    /// Item tags with at least one equippable-gear record (can roll name affixes).
+    gear_tags: HashSet<String>,
+    /// Per style/quality tag: the item tags of the bases it is applied to.
+    name_part_bases: HashMap<String, HashSet<String>>,
+}
+
 /// Runs the full inference pass over every database and returns the tag map.
 pub fn infer<T: BufRead + Seek>(dbs: &mut [Database<T>]) -> HashMap<String, TagInfo> {
     // Only gear records are needed: to classify rarity and decide affixability.
     let records = db::iter_records(dbs, |id| id.starts_with(ITEMS_PREFIX));
 
     let mut tags: HashMap<String, TagInfo> = HashMap::new();
-    // Per item tag: rarity -> #records. A handful of generic base-name tags are
-    // shared across items of different rarities (e.g. a name used by both Rare
-    // and Epic items), so we pick the most-frequent (mode) rarity.
-    let mut rarity_counts: HashMap<String, HashMap<Rarity, u32>> = HashMap::new();
-    // item tags with at least one record under records/items/faction/.
-    let mut faction_tags: HashSet<String> = HashSet::new();
-    // item tags with at least one equippable-gear record (can roll name affixes).
-    let mut gear_tags: HashSet<String> = HashSet::new();
+    let mut scan = Scan::default();
 
     for record in &records {
         let id = record.id.as_str();
         if id.starts_with(PREFIX_PATH) || id.starts_with(SUFFIX_PATH) {
             classify_affix(record, &mut tags);
         } else {
-            accumulate_item(record, &mut rarity_counts, &mut faction_tags, &mut gear_tags);
+            accumulate_item(record, &mut scan);
         }
     }
 
@@ -69,13 +83,17 @@ pub fn infer<T: BufRead + Seek>(dbs: &mut [Database<T>]) -> HashMap<String, TagI
     // NOT special-case awakened/upgraded variants: they're always Epic/Legendary
     // (never colored), so including them never changes a colored result — only
     // the colorable Common/Magical/Rare tiers matter here.
-    for (tag, counts) in &rarity_counts {
+    let mut affixable_tags: HashSet<&str> = HashSet::new();
+    for (tag, counts) in &scan.rarity_counts {
         let Some(rarity) = mode_rarity(counts) else {
             continue;
         };
-        let affixable = gear_tags.contains(tag)
-            && !faction_tags.contains(tag)
+        let affixable = scan.gear_tags.contains(tag)
+            && !scan.faction_tags.contains(tag)
             && matches!(rarity, Rarity::Common | Rarity::Magical | Rarity::Rare);
+        if affixable {
+            affixable_tags.insert(tag);
+        }
         tags.insert(
             tag.clone(),
             TagInfo {
@@ -86,8 +104,28 @@ pub fn infer<T: BufRead + Seek>(dbs: &mut [Database<T>]) -> HashMap<String, TagI
         );
     }
 
+    for (part, bases) in &scan.name_part_bases {
+        if bases.iter().any(|b| affixable_tags.contains(b.as_str())) {
+            tags.insert(part.clone(), NAME_PART_INFO);
+        }
+    }
+
     tags
 }
+
+/// A style/quality word that can follow a prefix affix. These sit between the
+/// prefix and the base name, so leaving one uncolored lets the affix's color
+/// bleed across it; it reads as part of the item name and wants the base's own
+/// color. In the DB every such word applied to an affixable base is Common-only,
+/// so that color is always white — the unique and faction styles (Empowered,
+/// Mythical, Polarized, Elite) only ever land on Epic, Legendary or faction
+/// gear, which never rolls a name affix, and so the `affixable_tags` test above
+/// leaves them alone.
+const NAME_PART_INFO: TagInfo = TagInfo {
+    kind: Kind::Item,
+    rarity: Rarity::Common,
+    affixable: true,
+};
 
 fn classify_affix(record: &Record, tags: &mut HashMap<String, TagInfo>) {
     let Some(tag) = string_field(record, AFFIX_TAG) else {
@@ -110,15 +148,10 @@ fn classify_affix(record: &Record, tags: &mut HashMap<String, TagInfo>) {
     );
 }
 
-/// Accumulates an item record into the per-tag rarity tally, the faction set,
-/// and the gear set. The final item entry (with the mode rarity) is built after
-/// the scan.
-fn accumulate_item(
-    record: &Record,
-    rarity_counts: &mut HashMap<String, HashMap<Rarity, u32>>,
-    faction_tags: &mut HashSet<String>,
-    gear_tags: &mut HashSet<String>,
-) {
+/// Accumulates an item record into the per-tag rarity tally, the faction, gear
+/// and name-part sets. The final item entry (with the mode rarity) is built
+/// after the scan.
+fn accumulate_item(record: &Record, scan: &mut Scan) {
     let Some(tag) = string_field(record, ITEM_TAG) else {
         return;
     };
@@ -128,20 +161,32 @@ fn accumulate_item(
 
     if let Some(class) = string_field(record, ITEM_CLASS) {
         if GEAR_CLASSES.iter().any(|g| class.starts_with(g)) {
-            gear_tags.insert(tag.clone());
+            scan.gear_tags.insert(tag.clone());
+        }
+    }
+
+    for field in NAME_PART_FIELDS {
+        if let Some(part) = string_field(record, field)
+            && !part.is_empty()
+        {
+            scan.name_part_bases
+                .entry(part)
+                .or_default()
+                .insert(tag.clone());
         }
     }
 
     let Some(rarity) = string_field(record, ITEM_RARITY).and_then(|s| Rarity::from_db(&s)) else {
         return;
     };
-    *rarity_counts
+    *scan
+        .rarity_counts
         .entry(tag.clone())
         .or_default()
         .entry(rarity)
         .or_default() += 1;
     if record.id.starts_with(FACTION_PREFIX) {
-        faction_tags.insert(tag);
+        scan.faction_tags.insert(tag);
     }
 }
 
