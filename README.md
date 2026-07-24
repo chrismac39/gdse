@@ -9,6 +9,8 @@ It recolors game text for items in two ways:
    roll affixes.
 2. Colored text in item tooltips for different damage types.
 
+<img width="313" height="204" alt="white_item_magic_rare" src="https://github.com/user-attachments/assets/b819ddb2-73b1-4013-a638-85b2f45a9488" />
+
 These are the two features of rainbow filter that the author of gdse finds essential and can't play
 Grim Dawn without. All other features of Rainbow Filter are omitted.
 
