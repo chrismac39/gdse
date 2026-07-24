@@ -12,7 +12,8 @@ It recolors game text for items in two ways:
 <img width="375" height="238" alt="image" src="https://github.com/user-attachments/assets/2cad86a0-da01-4817-90d8-53452dd20def" />
 
 These are the two features of rainbow filter that the author of gdse finds essential and can't play
-Grim Dawn without. All other features of Rainbow Filter are omitted.
+Grim Dawn without. All other features of Rainbow Filter are omitted. One other small difference from
+Rainbow Filter is that gdse colors Pierce damage pink, not red, to distinguish it from Bleed.
 
 gdse works by writing modified copies of some game resources to the `/settings/` directory of your
 Grim Dawn installation, just like Rainbow Filter. It's not compatible with Rainbow Filter or other
