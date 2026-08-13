@@ -51,26 +51,13 @@ fn main() {
     };
 
     let hash_file = out.join("gdse-db-hash.txt");
-    match std::fs::read_to_string(&hash_file) {
-        Ok(previous_log) => {
-            if latest_logged_hash(&previous_log).is_some_and(|h| h == db_hash) {
-                println!("Database hash unchanged since last run; output should be up to date.");
-            } else {
-                println!("Database hash changed since last run; rewriting output.");
-            }
-        }
-        Err(_) => {
-            println!("No previous database hash found; generating output.");
-        }
-    }
-
-    if patch_versions.is_empty() {
-        println!("No patch version label detected in text archives.");
-    } else {
-        println!(
-            "Detected patch version label(s): {}",
-            patch_versions.join(", ")
-        );
+    let previous = std::fs::read_to_string(&hash_file)
+        .ok()
+        .and_then(|log| latest_run_info(&log));
+    print_change_summary(previous.as_ref(), &db_hash, &steam_build_id, &patch_versions);
+    if !confirm_run() {
+        println!("Canceled by user; no output files were changed.");
+        return;
     }
 
     colorize::run(&mut dbs, &out, &lang, damage_colors);
@@ -98,22 +85,96 @@ fn main() {
     }
 }
 
-fn latest_logged_hash(log: &str) -> Option<&str> {
+#[derive(Debug)]
+struct RunInfo {
+    hash: String,
+    steam_build_id: Option<String>,
+    patch_versions: Option<String>,
+}
+
+fn latest_run_info(log: &str) -> Option<RunInfo> {
     for line in log.lines().rev() {
-        if let Some(token) = line
-            .split_whitespace()
-            .find(|token| token.starts_with("hash="))
-        {
-            return token.strip_prefix("hash=");
+        let mut hash = None;
+        let mut steam_build_id = None;
+        let mut patch_versions = None;
+
+        for token in line.split_whitespace() {
+            if let Some(v) = token.strip_prefix("hash=") {
+                hash = Some(v.to_string());
+            } else if let Some(v) = token.strip_prefix("steam_build_id=") {
+                steam_build_id = Some(v.to_string());
+            } else if let Some(v) = token.strip_prefix("patch_versions=") {
+                patch_versions = Some(v.to_string());
+            }
+        }
+
+        if let Some(hash) = hash {
+            return Some(RunInfo {
+                hash,
+                steam_build_id,
+                patch_versions,
+            });
         }
 
         // Backward compatibility with old lines: "YYYY-MM-DD HH:MM <hash>"
         let tokens: Vec<_> = line.split_whitespace().collect();
         if tokens.len() >= 3 {
-            return Some(tokens[2]);
+            return Some(RunInfo {
+                hash: tokens[2].to_string(),
+                steam_build_id: None,
+                patch_versions: None,
+            });
         }
     }
     None
+}
+
+fn print_change_summary(
+    previous: Option<&RunInfo>,
+    current_hash: &str,
+    current_build_id: &str,
+    current_patch_versions: &[String],
+) {
+    let current_patch_field = if current_patch_versions.is_empty() {
+        "unknown".to_string()
+    } else {
+        current_patch_versions.join(",")
+    };
+
+    if let Some(prev) = previous {
+        let hash_changed = prev.hash != current_hash;
+        let prev_build = prev.steam_build_id.as_deref().unwrap_or("unknown");
+        let prev_patch = prev.patch_versions.as_deref().unwrap_or("unknown");
+        let build_changed = prev_build != current_build_id;
+        let patch_changed = prev_patch != current_patch_field;
+
+        if hash_changed || build_changed || patch_changed {
+            println!("Changes detected since last run.");
+        } else {
+            println!("No changes detected since last run.");
+        }
+        println!("Steam build id: last={prev_build} current={current_build_id}");
+        println!("Patch version label(s): last={prev_patch} current={current_patch_field}");
+    } else {
+        println!("No previous run marker found.");
+        println!("Steam build id: last=unknown current={current_build_id}");
+        println!("Patch version label(s): last=unknown current={current_patch_field}");
+    }
+}
+
+fn confirm_run() -> bool {
+    print!("Proceed with recoloring run? [Y/N]: ");
+    if let Err(e) = std::io::stdout().flush() {
+        eprintln!("Could not flush prompt to stdout: {e}");
+        std::process::exit(1);
+    }
+
+    let mut input = String::new();
+    if let Err(e) = std::io::stdin().read_line(&mut input) {
+        eprintln!("Could not read user input: {e}");
+        std::process::exit(1);
+    }
+    matches!(input.trim().to_ascii_lowercase().as_str(), "y" | "yes")
 }
 
 fn local_timestamp_minute() -> String {

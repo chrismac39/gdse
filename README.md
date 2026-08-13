@@ -98,6 +98,9 @@ There are not currently any precompiled binaries available. You must build from 
    cargo run --release
    ```
 
+   gdse will show whether it detected changes since your last run, then prompt:
+   `Proceed with recoloring run? [Y/N]`.
+
    If you cloned somewhere else, replace `C:\repos\gdse` with your own full path.
    Example: if you cloned into Downloads, use `cd C:\Users\<your-username>\Downloads\gdse`.
 
@@ -115,6 +118,9 @@ git clone git@github.com:gregates/gdse.git
 cd /path/where/you/cloned/gdse
 cargo run --release
 ```
+
+gdse will show whether it detected changes since your last run, then prompt:
+`Proceed with recoloring run? [Y/N]`.
 
 ### Environment Variable Requirement
 
