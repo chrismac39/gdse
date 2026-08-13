@@ -7,7 +7,7 @@
 //! WanezGD's placement cascade), and any file that changed is written whole —
 //! comments, Desc lines and untouched tags preserved — to the output directory.
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::io::{BufRead, Seek};
 use std::path::Path;
 
@@ -31,6 +31,90 @@ fn text_arcs(lang: &str) -> [String; 4] {
         format!("gdx2/resources/Text_{up}.arc"),
         format!("gdx3/resources/Text_{up}.arc"),
     ]
+}
+
+/// Best-effort patch-version detection from decoded tag text.
+///
+/// Looks for comment markers like `#Patch v1.3.1` inside `tags*.txt` records
+/// from the language text archives and returns distinct discovered versions.
+pub fn detect_patch_versions(lang: &str) -> Vec<String> {
+    let base = install_path();
+    let mut versions = BTreeSet::new();
+
+    for rel in text_arcs(lang) {
+        let Ok(mut arc) = Archive::open(base.join(&rel)) else {
+            continue;
+        };
+        let Ok(records) = arc.iter_records() else {
+            continue;
+        };
+        for record in records.flatten() {
+            if !record.id.contains("tag") || !record.id.ends_with(".txt") {
+                continue;
+            }
+            let text = String::from_utf8_lossy(&record.data);
+            for line in text.lines() {
+                if let Some(v) = parse_patch_version(line) {
+                    versions.insert(v.to_string());
+                }
+            }
+        }
+    }
+
+    versions.into_iter().collect()
+}
+
+fn parse_patch_version(line: &str) -> Option<&str> {
+    // Most releases use comment markers like `#Patch v1.3.1`, but some builds
+    // may use other words such as `Hotfix` or `Update`.
+    let lower = line.to_ascii_lowercase();
+    let marker_idx = ["#patch", "#hotfix", "#update"]
+        .iter()
+        .filter_map(|m| lower.find(m))
+        .min()?;
+
+    let tail = line[marker_idx..].trim();
+    extract_version_token(tail)
+}
+
+fn extract_version_token(s: &str) -> Option<&str> {
+    for raw in s.split_whitespace() {
+        let trimmed = raw.trim_matches(|c: char| ",;:()[]{}\"'".contains(c));
+        let core = trimmed
+            .strip_prefix('v')
+            .or_else(|| trimmed.strip_prefix('V'))
+            .unwrap_or(trimmed);
+        if is_versionish(core) {
+            return Some(core);
+        }
+    }
+    None
+}
+
+fn is_versionish(s: &str) -> bool {
+    let mut chars = s.chars().peekable();
+    let mut saw_dot = false;
+    let mut saw_digit = false;
+    let mut starts_with_digit = false;
+
+    if let Some(c) = chars.peek().copied() {
+        starts_with_digit = c.is_ascii_digit();
+    }
+
+    for c in chars {
+        if c.is_ascii_digit() {
+            saw_digit = true;
+        } else if c == '.' {
+            saw_dot = true;
+        } else if c == '-' || c == '_' || c.is_ascii_alphabetic() {
+            // Allow suffixes like 1.3.1a or 1.3.1-hotfix.
+            continue;
+        } else {
+            return false;
+        }
+    }
+
+    starts_with_digit && saw_digit && saw_dot
 }
 
 /// Infers tag colors, rewrites `lang`'s text bundles, and writes the changed
