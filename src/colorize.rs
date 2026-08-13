@@ -188,6 +188,7 @@ fn recolor_file(
 ) -> (String, usize) {
     let mut out = String::with_capacity(text.len());
     let mut colored = 0usize;
+    let mut class_values: Vec<(String, String)> = Vec::new();
     for segment in text.split_inclusive('\n') {
         let (line, eol) = split_eol(segment);
         if let Some((tag, value)) = line.split_once('=') {
@@ -203,6 +204,39 @@ fn recolor_file(
                 if tag.contains("Conversion") {
                     new_value.push_str("{^E}");
                 }
+                if new_value != value {
+                    colored += 1;
+                }
+                out.push_str(tag);
+                out.push('=');
+                out.push_str(&new_value);
+                out.push_str(eol);
+                continue;
+            }
+            if let Some(color) = property::color_other_for(tag) {
+                let new_value = apply_color(value, color);
+                if new_value != value {
+                    colored += 1;
+                }
+                out.push_str(tag);
+                out.push('=');
+                out.push_str(&new_value);
+                out.push_str(eol);
+                continue;
+            }
+
+            if let Some((name, class_value)) = property::text_class(tag, value) {
+                // Capture localized class names and append them to class skill names later.
+                class_values.push((name, class_value));
+                out.push_str(tag);
+                out.push('=');
+                out.push_str(value);
+                out.push_str(eol);
+                continue;
+            }
+
+            if let Some(suffix) = property::text_for(tag, &class_values) {
+                let new_value = format!("{value} {suffix}");
                 if new_value != value {
                     colored += 1;
                 }
