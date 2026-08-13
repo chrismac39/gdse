@@ -24,7 +24,8 @@ impl UserPalette {
             Rarity::Common => self.get("rarity.common"),
             Rarity::Magical => self.get("rarity.magical"),
             Rarity::Rare => self.get("rarity.rare"),
-            Rarity::Epic | Rarity::Legendary => None,
+            Rarity::Epic => self.get("rarity.epic"),
+            Rarity::Legendary => self.get("rarity.legendary"),
         }
     }
 
@@ -148,6 +149,8 @@ fn is_known_key(key: &str) -> bool {
         "rarity.common"
             | "rarity.magical"
             | "rarity.rare"
+            | "rarity.epic"
+            | "rarity.legendary"
             | "damage.physical"
             | "damage.pierce"
             | "damage.bleeding"

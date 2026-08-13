@@ -1,58 +1,57 @@
-## Overview
+# Contents
 
-gdse is a simple, fully-automatic alternative to the popular [Rainbow
-Filter](https://forums.crateentertainment.com/t/tool-rainbow-filter-item-highlighting/42765/917) mod
-for the action RPG Grim Dawn, created by [Crate Entertainment](https://www.crateentertainment.com/).
+- [Contents](#contents)
+  - [Overview](#overview)
+  - [Why not just use Rainbow Filter?](#why-not-just-use-rainbow-filter)
+  - [Installation \& Usage](#installation--usage)
+    - [Setup - Windows OS](#setup---windows-os)
+    - [Quick Start (Linux)](#quick-start-linux)
+    - [Environment Variable Requirement](#environment-variable-requirement)
+    - [Current Color Palette](#current-color-palette)
+      - [Rarity Colors](#rarity-colors)
+      - [Damage-Type Property Colors](#damage-type-property-colors)
+      - [Non-Damage Property Colors](#non-damage-property-colors)
+      - [Grim Dawn Color Code Reference](#grim-dawn-color-code-reference)
+    - [Custom Palette File](#custom-palette-file)
+    - [Common Windows Issues](#common-windows-issues)
+    - [Notes for AI Coding Agents](#notes-for-ai-coding-agents)
+---
+## Overview
+gdse is a simple, fully-automatic alternative to the popular [Rainbow Filter](https://forums.crateentertainment.com/t/tool-rainbow-filter-item-highlighting/42765/917) mod for the action RPG Grim Dawn, created by [Crate Entertainment](https://www.crateentertainment.com/).
 It recolors game text for items in two ways:
 
-1. Separate coloring for affix rarity and base item rarity, for Common, Magic, and Rare items that
-   roll affixes.
+1. Separate coloring for affix rarity and base item rarity, for Common, Magic, and Rare items that roll affixes.
 2. Colored text in item tooltips for different damage types.
 
 <img width="375" height="238" alt="image" src="https://github.com/user-attachments/assets/2cad86a0-da01-4817-90d8-53452dd20def" />
 
-These are the two features of rainbow filter that the author of gdse finds essential and can't play
-Grim Dawn without. All other features of Rainbow Filter are omitted. One other small difference from
-Rainbow Filter is that gdse colors Pierce damage pink, not red, to distinguish it from Bleed (you can
-opt-in to Rainbow Filter's exact damage color scheme if you prefer it with the
-`--rainbow-filter-damage-colors` flag).
+These are the two features of Rainbow Filter that the author of gdse finds essential and can't play Grim Dawn without. All other features of Rainbow Filter are omitted. One other small difference from Rainbow Filter is that gdse colors Pierce damage pink, not red, to distinguish it from Bleed (you can opt in to Rainbow Filter-like Pierce coloring by setting `damage.pierce=r` in your custom palette file (see [Custom Palette File](#custom-palette-file)).
 
-gdse works by writing modified copies of some game resources to the `/settings/` directory of your
-Grim Dawn installation, just like Rainbow Filter. It's not compatible with Rainbow Filter or other
-mods that change game text. If new text is added to the game by a patch, you may see missing tag
-warnings until you re-run gdse.
+gdse works by writing modified copies of some game resources to the `/settings/` directory of your Grim Dawn installation, just like Rainbow Filter. It's not compatible with Rainbow Filter or other mods that change game text. If new text is added to the game by a patch, you may see missing tag warnings until you re-run gdse.
+
+---
 
 ## Why not just use Rainbow Filter?
 
-Great question! I used Rainbow Filter for years. It's a great mod. You should continue to use it if
-it works for you.
+Great question! I used Rainbow Filter for years. It's a great mod. You should continue to use it if it works for you.
 
-The main motivation for gdse was that Rainbow Filter depends on hand-crafted configuration that
-needs to be updated after every game patch. That gives Rainbow Filter a lot of power and
-flexibility, but it also causes delays — it takes time to produce a new Rainbow Filter mod after
-each patch.
+The main motivation for gdse was that Rainbow Filter depends on hand-crafted configuration that needs to be updated after every game patch. That gives Rainbow Filter a lot of power and flexibility, but it also causes delays — it takes time to produce a new Rainbow Filter mod after each patch.
 
-gdse depends on zero manually configured colors. Instead, it infers correct coloring based on game
-database files and a few simple heuristics. Therefore, when a new patch lands, all you need to do to
-get updated, recolored text files is rerun gdse. No waiting for me to release a new version in the
-typical case (major changes to the game may require updates to handle new game features, but it
-should mostly just work).
+gdse depends on zero manually configured colors. Instead, it infers correct coloring based on game database files and a few simple heuristics. Therefore, when a new patch lands, all you need to do to get updated, recolored text files is rerun gdse. No waiting for me to release a new version in the typical case (major changes to the game may require updates to handle new game features, but it should mostly just work).
 
-Additionally, I find many of Rainbow Filter's choices to be a little too much. I don't need an (S)
-to get inserted on every set item, or MIs to have a special color, or "Empowered" and "Mythical" to
-be a different color than the base item name, or for "Physique" to be colored pink. Your preferences
-may not match mine, and that's OK! One of Rainbow Filter's strengths is that it's highly
-customizable (it just takes a lot of effort to customize). gdse is simpler and more opinionated.
-This can be a virtue if you don't strongly disagree with its opinions.
+Additionally, I find many of Rainbow Filter's choices to be a little too much. I don't need an (S) to get inserted on every set item, or MIs to have a special color, or "Empowered" and "Mythical" to be a different color than the base item name, or for "Physique" to be colored pink. Your preferences may not match mine, and that's OK! One of Rainbow Filter's strengths is that it's highly customizable (it just takes a lot of effort to customize). gdse is simpler and more opinionated. This can be a virtue if you don't strongly disagree with its opinions.
+
+---
 
 ## Installation & Usage
 
-gdse has been tested with game version 1.3.0 on linux only, and only for
-English text files, but in theory it should work on windows and with localizations.
+gdse was originally developed and tested on Linux by the original author (game version 1.3.0, English text files). Additional features in this fork, including recent palette and workflow additions, were developed and tested on Windows. In theory it should also work with localizations.
 
 There are not currently any precompiled binaries available. You must build from source.
 
-### Quick Start (Windows, PowerShell)
+---
+
+### Setup - Windows OS
 
 1. Install Rust (choose one option):
 
@@ -67,7 +66,7 @@ There are not currently any precompiled binaries available. You must build from 
    - Download and run `rustup-init.exe`
    - Keep the default installation settings unless you have a specific reason to change them
 
-2. Open a new terminal, then verify tools are available wtih these commands:
+2. Open a new terminal, then verify tools are available with these commands:
 
    ```powershell
    rustc --version
@@ -98,14 +97,15 @@ There are not currently any precompiled binaries available. You must build from 
    cargo run --release
    ```
 
-   gdse will first ask whether to use default colors or a custom palette file,
-   then show whether it detected changes since your last run, then prompt:
+   gdse will first ask whether to use default colors or a custom palette file, then show whether it detected changes since your last run, then prompt:
    `Proceed with recoloring run? [Y/N]`.
 
    If you cloned somewhere else, replace `C:\repos\gdse` with your own full path.
    Example: if you cloned into Downloads, use `cd C:\Users\<your-username>\Downloads\gdse`.
 
 Important: the Grim Dawn install path above is only an example. Use the actual path from your own installation.
+
+---
 
 ### Quick Start (Linux)
 
@@ -120,8 +120,7 @@ cd /path/where/you/cloned/gdse
 cargo run --release
 ```
 
-gdse will first ask whether to use default colors or a custom palette file,
-then show whether it detected changes since your last run, then prompt:
+gdse will first ask whether to use default colors or a custom palette file, then show whether it detected changes since your last run, then prompt:
 `Proceed with recoloring run? [Y/N]`.
 
 ### Environment Variable Requirement
@@ -132,110 +131,119 @@ then show whether it detected changes since your last run, then prompt:
 
 Re-run gdse after game patches if you see missing tags or incorrect colors.
 
-To make this easier to track, gdse also writes `gdse-db-hash.txt` in the output folder.
-Each run of `cargo run --release` appends one line in this format (local computer time, minute precision):
+To make this easier to track, gdse also writes `gdse-db-hash.txt` in the output folder. Each run of `cargo run --release` appends one line in this format (local computer time, minute precision):
 
 `<YYYY-MM-DD HH:MM> hash=<hash> steam_build_id=<build_id_or_unknown> patch_versions=<version_list_or_unknown>`
 
 `patch_versions` is inferred from release-marker comments found in game text (for example, lines starting with `#Patch`, `#Hotfix`, or `#Update`).
 
+---
+
 ### Current Color Palette
 
-gdse uses Grim Dawn's built-in color-code letters from `gd-colorcodes.json`.
-The tables below show the current mappings in plain English plus the game code
-letter and hex value.
+gdse uses Grim Dawn's built-in color-code letters from `gd-colorcodes.json`. The tables below show the current mappings in plain English plus the game code letter.
 
-Note: item/tooltip text is rendered on dark/black backgrounds in Grim Dawn, so
-high-contrast bright colors are strongly recommended for readability.
+Note: item/tooltip text is rendered on dark/black backgrounds in Grim Dawn, so high-contrast bright colors are strongly recommended for readability.
 
 #### Rarity Colors
 
-| Category | Color Name | Game Code | Hex |
+| Category | Palette Key | Color Name | Game Code |
 |---|---|---|---|
-| Common item/affix | White | `w` | `#FFFFFF` |
-| Magical item/affix | Yellow | `y` | `#FFF62C` |
-| Rare item/affix | Green | `g` | `#10EB5D` |
+| Common item/affix | `rarity.common` | White | `w` |
+| Magical item/affix | `rarity.magical` | Yellow | `y` |
+| Rare item/affix | `rarity.rare` | Green | `g` |
+| Epic item/affix (optional override) | `rarity.epic` | Uncolored by default | `b` (engine default blue) |
+| Legendary item/affix (optional override) | `rarity.legendary` | Uncolored by default | `i` (engine default indigo) |
 
 #### Damage-Type Property Colors
 
-| Category | Color Name | Game Code | Hex |
+| Category | Palette Key | Color Name | Game Code |
 |---|---|---|---|
-| Physical | Khaki | `k` | `#F1E78C` |
-| Pierce (gdse default) | Fushia/Pink | `f` | `#FF69B5` |
-| Bleeding | Red | `r` | `#FF4200` |
-| Fire | Orange | `o` | `#F3A44D` |
-| Cold | Cyan | `c` | `#00FFFF` |
-| Lightning | Cobalt | `z` | `#6A91E0` |
-| Poison/Acid | Olive | `l` | `#92CC00` |
-| Vitality/Life | Maroon | `m` | `#800000` |
-| Aether | Aqua | `a` | `#80FFD5` |
-| Chaos | Purple | `p` | `#BD94C6` |
-| Elemental | Yellow | `y` | `#FFF62C` |
+| Physical | `damage.physical` | Khaki | `k` |
+| Pierce (gdse default) | `damage.pierce` | Fuchsia/Pink | `f` |
+| Bleeding | `damage.bleeding` | Red | `r` |
+| Fire | `damage.fire` | Orange | `o` |
+| Cold | `damage.cold` | Cyan | `c` |
+| Lightning | `damage.lightning` | Cobalt | `z` |
+| Poison/Acid | `damage.poison` | Olive | `l` |
+| Vitality/Life | `damage.vitality`, `damage.life` | Maroon | `m` |
+| Aether | `damage.aether` | Aqua | `a` |
+| Chaos | `damage.chaos` | Purple | `p` |
+| Elemental | `damage.elemental` | Yellow | `y` |
 
 #### Non-Damage Property Colors
 
-| Category | Color Name | Game Code | Hex |
+| Category | Palette Key | Color Name | Game Code |
 |---|---|---|---|
-| Cunning/Spirit/Physique aggregate (`tagCharAttribute0`) | Grayish Orange (highlight) | `h` | (engine highlight color) |
-| Mastery/All Skills increments | Teal | `t` | `#00FFD2` |
-| OA/DA/Speed/Crit/Total damage modifier group | Uncolored by default | (none) | (inherits game default text color) |
+| Cunning/Spirit/Physique aggregate (`tagCharAttribute0`) | `nondamage.attribute0` | Grayish Orange (highlight) | `h` |
+| Mastery increment | `nondamage.mastery_increment` | Teal | `t` |
+| All Skills increment | `nondamage.all_skill_increment` | Teal | `t` |
+| Run speed | `nondamage.run_speed` | Uncolored by default | (none) |
+| Cast speed | `nondamage.cast_speed` | Uncolored by default | (none) |
+| Attack speed | `nondamage.attack_speed` | Uncolored by default | (none) |
+| Total speed modifier | `nondamage.total_speed` | Uncolored by default | (none) |
+| Run speed modifier | `nondamage.run_speed_modifier` | Uncolored by default | (none) |
+| Offensive Ability | `nondamage.offensive_ability` | Uncolored by default | (none) |
+| Defensive Ability | `nondamage.defensive_ability` | Uncolored by default | (none) |
+| Crit damage modifier | `nondamage.crit_damage` | Uncolored by default | (none) |
+| Damage multiplier | `nondamage.damage_mult` | Uncolored by default | (none) |
+| Total damage modifier | `nondamage.total_damage` | Uncolored by default | (none) |
+
+#### Grim Dawn Color Code Reference
+
+The game uses single-letter color codes in tag text (for example `{^f}`).
+
+| Code | Name | Notes |
+|---|---|---|
+| `a` | Aqua | Bright, readable |
+| `b` | Blue | Engine default Epic item color |
+| `c` | Cyan | Bright, readable |
+| `d` | Dark Gray | Usually too dark on tooltip background |
+| `e` | Brown | Engine body text color |
+| `f` | Fuchsia/Pink | Bright, readable |
+| `g` | Green | Bright, readable |
+| `h` | Grayish Orange | Engine highlight color |
+| `i` | Indigo | Engine default Legendary item color |
+| `j` | (disabled) | Disabled in game color table |
+| `k` | Khaki | Bright, readable |
+| `l` | Olive | Bright enough for many uses |
+| `m` | Maroon | Darker than most bright colors |
+| `n` | (disabled) | Disabled in game color table |
+| `o` | Orange | Bright, readable |
+| `p` | Purple | Bright, readable |
+| `q` | Grayish Magenta | Engine lore-item color |
+| `r` | Red | Bright, readable |
+| `s` | Silver | Engine dynamic "inactive bonus" cue |
+| `t` | Teal | Unused by engine defaults, good override candidate |
+| `u` | (disabled) | Disabled in game color table |
+| `v` | (disabled) | Disabled in game color table |
+| `w` | White | Bright, readable |
+| `x` | Dark Green | Usually too dark on tooltip background |
+| `y` | Yellow | Bright, readable |
+| `z` | Cobalt | Bright, readable |
+
+---
 
 ### Custom Palette File
 
-If you want your own colors, create `gdse-palette.txt` in the same folder where
-you run `cargo run --release`, or pass a custom file path with `--palette-file`.
+If you want your own colors, create `gdse-palette.txt` in the same folder where you run `cargo run --release`, or pass a custom file path with `--palette-file`.
 
-In the interactive run flow, if you answer `N` to `Use default gdse palette? [Y/N]`,
-gdse exits immediately and asks you to create `gdse-palette.txt`, then run again.
+In the interactive run flow, if you answer `N` to `Use default gdse palette? [Y/N]`, gdse exits immediately and asks you to create `gdse-palette.txt`, then run again.
+If you prefer another location or filename, use `--palette-file <path>`.
 
 Format is one `key=letter` per line. Blank lines and `# comments` are allowed.
 
 Example (single override):
 
 ```text
-damage.chaos=p
+damage.chaos=f
 ```
 
-This is totally valid: one line is enough. Any key you do not include keeps the
-built-in gdse default for that category.
+This is totally valid: one line is enough. Any key you do not include keeps the built-in gdse default for that category.
 
-You can override just one category if you want. Example: a file containing only
-`damage.chaos=f` changes Chaos to hot pink and leaves every other color on gdse defaults.
+You can override just one category if you want. Example: a file containing only `damage.chaos=f` changes Chaos to hot pink and leaves every other color on gdse defaults.
 
-#### Palette Keys Reference
-
-Use these keys in `gdse-palette.txt`:
-
-| Key | Controls |
-|---|---|
-| `rarity.common` | Common item/affix rarity color |
-| `rarity.magical` | Magical item/affix rarity color |
-| `rarity.rare` | Rare item/affix rarity color |
-| `damage.physical` | Physical damage property color |
-| `damage.pierce` | Pierce damage property color |
-| `damage.bleeding` | Bleeding damage property color |
-| `damage.fire` | Fire damage property color |
-| `damage.cold` | Cold damage property color |
-| `damage.lightning` | Lightning damage property color |
-| `damage.poison` | Poison/Acid damage property color |
-| `damage.vitality` | Vitality damage property color |
-| `damage.life` | Life-based property color |
-| `damage.aether` | Aether damage property color |
-| `damage.chaos` | Chaos damage property color |
-| `damage.elemental` | Elemental damage property color |
-| `nondamage.attribute0` | Cunning/Spirit/Physique aggregate color |
-| `nondamage.mastery_increment` | +Mastery level line color |
-| `nondamage.all_skill_increment` | +All Skills line color |
-| `nondamage.run_speed` | Run speed line color |
-| `nondamage.cast_speed` | Cast speed line color |
-| `nondamage.attack_speed` | Attack speed line color |
-| `nondamage.total_speed` | Total speed modifier line color |
-| `nondamage.run_speed_modifier` | Run speed modifier line color |
-| `nondamage.offensive_ability` | Offensive Ability line color |
-| `nondamage.defensive_ability` | Defensive Ability line color |
-| `nondamage.crit_damage` | Crit damage modifier line color |
-| `nondamage.damage_mult` | Damage multiplier line color |
-| `nondamage.total_damage` | Total damage modifier line color |
+---
 
 ### Common Windows Issues
 
@@ -247,6 +255,8 @@ Use these keys in `gdse-palette.txt`:
 - `GRIM_DAWN_INSTALL_PATH` missing or wrong:
   - Print it with `echo $env:GRIM_DAWN_INSTALL_PATH` in PowerShell.
   - Update it with `setx GRIM_DAWN_INSTALL_PATH "<your path>"`.
+
+---
 
 ### Notes for AI Coding Agents
 

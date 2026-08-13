@@ -3,8 +3,8 @@
 //! scope-decision memory).
 //!
 //! Only item & affix rarity is colored, and only the three rarities that can
-//! carry a name-altering affix: Common=White, Magical=Yellow, Rare=Green. Epic/Legendary
-//! names never take a prefix/suffix, so they're left to the engine's native
+//! carry a name-altering affix: Common=White, Magical=Yellow, Rare=Green.
+//! Higher rarities keep native game colors by default, but can be overridden.
 //! rarity color. Faction / Set / Skill / Quality / Style get no special cue
 //! either, matching Full Rainbow. Damage-type Property colors live separately in
 //! `property.rs`. Colors are the single-letter codes from gd-colorcodes.json.
@@ -26,6 +26,9 @@ pub fn color_for(info: &TagInfo, user_palette: &UserPalette) -> Option<char> {
         Rarity::Common => Some(user_palette.rarity(Rarity::Common).unwrap_or(WHITE)),
         Rarity::Magical => Some(user_palette.rarity(Rarity::Magical).unwrap_or(YELLOW)),
         Rarity::Rare => Some(user_palette.rarity(Rarity::Rare).unwrap_or(GREEN)),
-        Rarity::Epic | Rarity::Legendary => None,
+        // Optional override key: rarity.epic
+        Rarity::Epic => user_palette.rarity(Rarity::Epic),
+        // Optional override key: rarity.legendary
+        Rarity::Legendary => user_palette.rarity(Rarity::Legendary),
     }
 }
