@@ -12,6 +12,7 @@ mod infer;
 mod keywords;
 mod palette;
 mod property;
+mod user_palette;
 
 use property::DamageColors;
 
@@ -30,6 +31,9 @@ struct Args {
     /// Paints Pierce red, like rainbow filter, not pink.
     #[arg(long)]
     rainbow_filter_damage_colors: bool,
+    /// Optional palette config file (key=value lines). Defaults to ./gdse-palette.txt if present.
+    #[arg(long)]
+    palette_file: Option<PathBuf>,
 }
 
 fn main() {
@@ -38,6 +42,8 @@ fn main() {
     let db_hash = db::database_hash();
     let steam_build_id = db::steam_build_id().unwrap_or_else(|| "unknown".to_string());
     let patch_versions = colorize::detect_patch_versions(&lang);
+    let palette_file = choose_palette_file(args.palette_file.as_deref());
+    let palette_load = user_palette::load(palette_file.as_deref());
     let mut dbs = db::open_all();
     let out = args.out.unwrap_or_else(|| {
         db::install_path()
@@ -49,6 +55,11 @@ fn main() {
     } else {
         DamageColors::Default
     };
+    if let Some(source) = &palette_load.source {
+        println!("Loaded custom palette from {}", source.display());
+    } else {
+        println!("Using default gdse palette.");
+    }
 
     let hash_file = out.join("gdse-db-hash.txt");
     let previous = std::fs::read_to_string(&hash_file)
@@ -60,7 +71,7 @@ fn main() {
         return;
     }
 
-    colorize::run(&mut dbs, &out, &lang, damage_colors);
+    colorize::run(&mut dbs, &out, &lang, damage_colors, &palette_load.palette);
 
     let now = local_timestamp_minute();
     let patch_versions_field = if patch_versions.is_empty() {
@@ -163,7 +174,26 @@ fn print_change_summary(
 }
 
 fn confirm_run() -> bool {
-    print!("Proceed with recoloring run? [Y/N]: ");
+    confirm_yes_no("Proceed with recoloring run? [Y/N]: ")
+}
+
+fn choose_palette_file(cli_palette_file: Option<&std::path::Path>) -> Option<PathBuf> {
+    if let Some(path) = cli_palette_file {
+        return Some(path.to_path_buf());
+    }
+
+    if confirm_yes_no("Use default gdse palette? [Y/N]: ") {
+        return None;
+    }
+
+    println!(
+        "Custom palette selected. Create gdse-palette.txt in this folder, then run gdse again."
+    );
+    std::process::exit(0);
+}
+
+fn confirm_yes_no(prompt: &str) -> bool {
+    print!("{prompt}");
     if let Err(e) = std::io::stdout().flush() {
         eprintln!("Could not flush prompt to stdout: {e}");
         std::process::exit(1);

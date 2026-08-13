@@ -12,19 +12,20 @@
 use crate::infer::TagInfo;
 use crate::keywords::{Kind, Rarity};
 use crate::palette::{GREEN, WHITE, YELLOW};
+use crate::user_palette::UserPalette;
 
 /// The color letter to bake into the tag's value, or `None` if it's left
 /// untouched. Base item names are only colored when they can take a name-
 /// altering affix (otherwise the engine's native rarity color is fine and there
 /// is no bleed to guard against); affix tags are always colored by their rarity.
-pub fn color_for(info: &TagInfo) -> Option<char> {
+pub fn color_for(info: &TagInfo, user_palette: &UserPalette) -> Option<char> {
     if info.kind == Kind::Item && !info.affixable {
         return None;
     }
     match info.rarity {
-        Rarity::Common => Some(WHITE),
-        Rarity::Magical => Some(YELLOW),
-        Rarity::Rare => Some(GREEN),
+        Rarity::Common => Some(user_palette.rarity(Rarity::Common).unwrap_or(WHITE)),
+        Rarity::Magical => Some(user_palette.rarity(Rarity::Magical).unwrap_or(YELLOW)),
+        Rarity::Rare => Some(user_palette.rarity(Rarity::Rare).unwrap_or(GREEN)),
         Rarity::Epic | Rarity::Legendary => None,
     }
 }

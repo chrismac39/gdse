@@ -12,9 +12,10 @@
 //! no element token and so are left untouched.
 
 use crate::palette::{
-    AQUA, COBALT, CYAN, DARK_GREEN, FUSHIA, KHAKI, MAROON, OLIVE, ORANGE, PURPLE,
-    RED, WHITE, YELLOW,
+    AQUA, COBALT, CYAN, FUSHIA, HIGHLIGHT_ORANGE, KHAKI, MAROON, OLIVE, ORANGE,
+    PURPLE, RED, TEAL, YELLOW,
 };
+use crate::user_palette::UserPalette;
 
 /// Structural prefixes that mark a damage / resistance / retaliation /
 /// conversion stat label. A property tag always starts with one of these.
@@ -62,7 +63,7 @@ const TOKENS: [(&str, char); 12] = [
 ];
 
 /// The color letter for a damage-type Property tag, or `None` if `tag` isn't one.
-pub fn color_for(tag: &str, damage_colors: DamageColors) -> Option<char> {
+pub fn color_for(tag: &str, damage_colors: DamageColors, user_palette: &UserPalette) -> Option<char> {
     if !PREFIXES.iter().any(|p| tag.starts_with(p)) {
         return None;
     }
@@ -97,7 +98,7 @@ pub fn color_for(tag: &str, damage_colors: DamageColors) -> Option<char> {
     let color = TOKENS
         .iter()
         .find(|(tok, _)| tag.contains(tok))
-        .map(|(_, color)| *color)?;
+        .map(|(tok, color)| user_palette.damage(tok).unwrap_or(*color))?;
     // Opt back in to Full Rainbow's Red Pierce. Fushia is the only entry gdse
     // departs on, so folding it back to Red is the whole of the flag.
     if damage_colors == DamageColors::RainbowFilter && color == FUSHIA {
@@ -114,30 +115,42 @@ const PREFIXES_OTHER: [&str; 4] = [
     "ItemAllSkillIncrement",
 ];
 
-const TOKENS_OTHER: [(&str, char); 13] = [
-    ("tagCharAttribute0", WHITE),
-    ("ItemMasteryIncrement", DARK_GREEN),
-    ("ItemAllSkillIncrement", DARK_GREEN),
-    ("tagCharRunSpeed", DARK_GREEN),
-    ("tagCharSpellCastSpeed", DARK_GREEN),
-    ("tagCharAttackSpeed", DARK_GREEN),
-    ("tagCharTotalSpeedModifier", DARK_GREEN),
-    ("tagCharRunSpeedModifier", DARK_GREEN),
-    ("tagCharOffensiveAbility", DARK_GREEN),
-    ("tagCharDefensiveAbility", DARK_GREEN),
-    ("tagDamageModifierCritDamage", DARK_GREEN),
-    ("tagDamageModifierDamageMult", DARK_GREEN),
-    ("tagDamageModifierTotalDamage", DARK_GREEN),
+const TOKENS_OTHER: [(&str, &str, Option<char>); 13] = [
+    ("tagCharAttribute0", "nondamage.attribute0", Some(HIGHLIGHT_ORANGE)),
+    (
+        "ItemMasteryIncrement",
+        "nondamage.mastery_increment",
+        Some(TEAL),
+    ),
+    (
+        "ItemAllSkillIncrement",
+        "nondamage.all_skill_increment",
+        Some(TEAL),
+    ),
+    ("tagCharRunSpeed", "nondamage.run_speed", None),
+    ("tagCharSpellCastSpeed", "nondamage.cast_speed", None),
+    ("tagCharAttackSpeed", "nondamage.attack_speed", None),
+    ("tagCharTotalSpeedModifier", "nondamage.total_speed", None),
+    (
+        "tagCharRunSpeedModifier",
+        "nondamage.run_speed_modifier",
+        None,
+    ),
+    ("tagCharOffensiveAbility", "nondamage.offensive_ability", None),
+    ("tagCharDefensiveAbility", "nondamage.defensive_ability", None),
+    ("tagDamageModifierCritDamage", "nondamage.crit_damage", None),
+    ("tagDamageModifierDamageMult", "nondamage.damage_mult", None),
+    ("tagDamageModifierTotalDamage", "nondamage.total_damage", None),
 ];
 
-pub fn color_other_for(tag: &str) -> Option<char> {
+pub fn color_other_for(tag: &str, user_palette: &UserPalette) -> Option<char> {
     if !PREFIXES_OTHER.iter().any(|p| tag.starts_with(p)) {
         return None;
     }
     TOKENS_OTHER
         .iter()
-        .find(|(tok, _)| tag.contains(tok))
-        .map(|(_, color)| *color)
+        .find(|(tok, _, _)| tag.contains(tok))
+        .and_then(|(_, key, default)| user_palette.non_damage(key).or(*default))
 }
 
 const CLASSES: [&str; 4] = ["tagClass", "tagGDX1Class", "tagGDX2Class", "tagGDX3Class"];

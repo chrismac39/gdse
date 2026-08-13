@@ -18,6 +18,7 @@ use crate::color;
 use crate::db::install_path;
 use crate::infer;
 use crate::property::{self, DamageColors};
+use crate::user_palette::UserPalette;
 
 /// The text bundles for a language, base game + expansions, in load order. EN
 /// ships one arc per part; other languages bundle everything into the base arc
@@ -124,8 +125,9 @@ pub fn run<T: BufRead + Seek>(
     out_dir: &Path,
     lang: &str,
     damage_colors: DamageColors,
+    user_palette: &UserPalette,
 ) {
-    let colors = color_map(dbs);
+    let colors = color_map(dbs, user_palette);
 
     if let Err(e) = std::fs::create_dir_all(out_dir) {
         eprintln!("Could not create {}: {e}", out_dir.display());
@@ -147,7 +149,7 @@ pub fn run<T: BufRead + Seek>(
                 continue;
             }
             let text = String::from_utf8_lossy(&record.data);
-            let (rewritten, colored) = recolor_file(&text, &colors, damage_colors);
+            let (rewritten, colored) = recolor_file(&text, &colors, damage_colors, user_palette);
             if colored == 0 {
                 continue;
             }
@@ -171,10 +173,13 @@ pub fn run<T: BufRead + Seek>(
 /// Builds the tag -> color-letter map for the DB-inferred item / affix tags.
 /// Damage-type Property tags aren't listed here: they're recognized by name on
 /// the fly in `recolor_file` (see `property::color_for`).
-fn color_map<T: BufRead + Seek>(dbs: &mut [Database<T>]) -> HashMap<String, char> {
+fn color_map<T: BufRead + Seek>(
+    dbs: &mut [Database<T>],
+    user_palette: &UserPalette,
+) -> HashMap<String, char> {
     infer::infer(dbs)
         .into_iter()
-        .filter_map(|(tag, info)| color::color_for(&info).map(|c| (tag, c)))
+        .filter_map(|(tag, info)| color::color_for(&info, user_palette).map(|c| (tag, c)))
         .collect()
 }
 
@@ -185,6 +190,7 @@ fn recolor_file(
     text: &str,
     colors: &HashMap<String, char>,
     damage_colors: DamageColors,
+    user_palette: &UserPalette,
 ) -> (String, usize) {
     let mut out = String::with_capacity(text.len());
     let mut colored = 0usize;
@@ -196,7 +202,7 @@ fn recolor_file(
             if let Some(color) = colors
                 .get(tag)
                 .copied()
-                .or_else(|| property::color_for(tag, damage_colors))
+                .or_else(|| property::color_for(tag, damage_colors, user_palette))
             {
                 let mut new_value = apply_color(value, color);
                 // Conversion labels carry no placeholder, so the color would
@@ -213,7 +219,7 @@ fn recolor_file(
                 out.push_str(eol);
                 continue;
             }
-            if let Some(color) = property::color_other_for(tag) {
+            if let Some(color) = property::color_other_for(tag, user_palette) {
                 let new_value = apply_color(value, color);
                 if new_value != value {
                     colored += 1;

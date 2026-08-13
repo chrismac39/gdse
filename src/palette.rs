@@ -19,8 +19,6 @@ pub const WHITE: char = 'w';
 pub const YELLOW: char = 'y';
 /// `10EB5D`
 pub const GREEN: char = 'g';
-/// `00A819`
-pub const DARK_GREEN: char = 'x';
 /// `F1E78C`
 pub const KHAKI: char = 'k';
 /// `FF69B5`
@@ -41,3 +39,7 @@ pub const MAROON: char = 'm';
 pub const AQUA: char = 'a';
 /// `BD94C6`
 pub const PURPLE: char = 'p';
+/// Grayish Orange (engine highlight color)
+pub const HIGHLIGHT_ORANGE: char = 'h';
+/// `00FFD2`
+pub const TEAL: char = 't';

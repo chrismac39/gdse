@@ -98,7 +98,8 @@ There are not currently any precompiled binaries available. You must build from 
    cargo run --release
    ```
 
-   gdse will show whether it detected changes since your last run, then prompt:
+   gdse will first ask whether to use default colors or a custom palette file,
+   then show whether it detected changes since your last run, then prompt:
    `Proceed with recoloring run? [Y/N]`.
 
    If you cloned somewhere else, replace `C:\repos\gdse` with your own full path.
@@ -119,7 +120,8 @@ cd /path/where/you/cloned/gdse
 cargo run --release
 ```
 
-gdse will show whether it detected changes since your last run, then prompt:
+gdse will first ask whether to use default colors or a custom palette file,
+then show whether it detected changes since your last run, then prompt:
 `Proceed with recoloring run? [Y/N]`.
 
 ### Environment Variable Requirement
@@ -136,6 +138,102 @@ Each run of `cargo run --release` appends one line in this format (local compute
 `<YYYY-MM-DD HH:MM> hash=<hash> steam_build_id=<build_id_or_unknown> patch_versions=<version_list_or_unknown>`
 
 `patch_versions` is inferred from release-marker comments found in game text (for example, lines starting with `#Patch`, `#Hotfix`, or `#Update`).
+
+### Current Color Palette
+
+gdse uses Grim Dawn's built-in color-code letters from `gd-colorcodes.json`.
+The tables below show the current mappings in plain English plus the game code
+letter and hex value.
+
+Note: item/tooltip text is rendered on dark/black backgrounds in Grim Dawn, so
+high-contrast bright colors are strongly recommended for readability.
+
+#### Rarity Colors
+
+| Category | Color Name | Game Code | Hex |
+|---|---|---|---|
+| Common item/affix | White | `w` | `#FFFFFF` |
+| Magical item/affix | Yellow | `y` | `#FFF62C` |
+| Rare item/affix | Green | `g` | `#10EB5D` |
+
+#### Damage-Type Property Colors
+
+| Category | Color Name | Game Code | Hex |
+|---|---|---|---|
+| Physical | Khaki | `k` | `#F1E78C` |
+| Pierce (gdse default) | Fushia/Pink | `f` | `#FF69B5` |
+| Bleeding | Red | `r` | `#FF4200` |
+| Fire | Orange | `o` | `#F3A44D` |
+| Cold | Cyan | `c` | `#00FFFF` |
+| Lightning | Cobalt | `z` | `#6A91E0` |
+| Poison/Acid | Olive | `l` | `#92CC00` |
+| Vitality/Life | Maroon | `m` | `#800000` |
+| Aether | Aqua | `a` | `#80FFD5` |
+| Chaos | Purple | `p` | `#BD94C6` |
+| Elemental | Yellow | `y` | `#FFF62C` |
+
+#### Non-Damage Property Colors
+
+| Category | Color Name | Game Code | Hex |
+|---|---|---|---|
+| Cunning/Spirit/Physique aggregate (`tagCharAttribute0`) | Grayish Orange (highlight) | `h` | (engine highlight color) |
+| Mastery/All Skills increments | Teal | `t` | `#00FFD2` |
+| OA/DA/Speed/Crit/Total damage modifier group | Uncolored by default | (none) | (inherits game default text color) |
+
+### Custom Palette File
+
+If you want your own colors, create `gdse-palette.txt` in the same folder where
+you run `cargo run --release`, or pass a custom file path with `--palette-file`.
+
+In the interactive run flow, if you answer `N` to `Use default gdse palette? [Y/N]`,
+gdse exits immediately and asks you to create `gdse-palette.txt`, then run again.
+
+Format is one `key=letter` per line. Blank lines and `# comments` are allowed.
+
+Example:
+
+```text
+# Rarity
+rarity.common=w
+rarity.magical=y
+rarity.rare=g
+
+# Damage
+damage.physical=k
+damage.pierce=f
+damage.bleeding=r
+damage.fire=o
+damage.cold=c
+damage.lightning=z
+damage.poison=l
+damage.vitality=m
+damage.life=m
+damage.aether=a
+damage.chaos=p
+damage.elemental=y
+
+# Non-damage
+nondamage.attribute0=h
+nondamage.mastery_increment=t
+nondamage.all_skill_increment=t
+
+# Optional overrides for categories that are uncolored by default:
+# nondamage.run_speed=g
+# nondamage.cast_speed=g
+# nondamage.attack_speed=g
+# nondamage.total_speed=g
+# nondamage.run_speed_modifier=g
+# nondamage.offensive_ability=g
+# nondamage.defensive_ability=g
+# nondamage.crit_damage=g
+# nondamage.damage_mult=g
+# nondamage.total_damage=g
+```
+
+If a key is omitted, gdse keeps the built-in default for that category.
+
+You can override just one category if you want. Example: a file containing only
+`damage.chaos=f` changes Chaos to hot pink and leaves every other color on gdse defaults.
 
 ### Common Windows Issues
 
