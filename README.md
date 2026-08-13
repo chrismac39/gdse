@@ -45,7 +45,7 @@ Additionally, I find many of Rainbow Filter's choices to be a little too much. I
 
 ## Installation & Usage
 
-gdse was originally developed and tested on Linux by the original author (game version 1.3.0, English text files). Additional features in this fork, including recent palette and workflow additions, were developed and tested on Windows. In theory it should also work with localizations.
+gdse was originally developed and tested on Linux by the original author (game version 1.3.0, English text files). Additional features , including recent palette and workflow additions, were developed by a contributor and tested on Windows only. In theory it should also work with localizations.
 
 There are not currently any precompiled binaries available. You must build from source.
 
