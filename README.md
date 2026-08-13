@@ -190,50 +190,52 @@ gdse exits immediately and asks you to create `gdse-palette.txt`, then run again
 
 Format is one `key=letter` per line. Blank lines and `# comments` are allowed.
 
-Example:
+Example (single override):
 
 ```text
-# Rarity
-rarity.common=w
-rarity.magical=y
-rarity.rare=g
-
-# Damage
-damage.physical=k
-damage.pierce=f
-damage.bleeding=r
-damage.fire=o
-damage.cold=c
-damage.lightning=z
-damage.poison=l
-damage.vitality=m
-damage.life=m
-damage.aether=a
 damage.chaos=p
-damage.elemental=y
-
-# Non-damage
-nondamage.attribute0=h
-nondamage.mastery_increment=t
-nondamage.all_skill_increment=t
-
-# Optional overrides for categories that are uncolored by default:
-# nondamage.run_speed=g
-# nondamage.cast_speed=g
-# nondamage.attack_speed=g
-# nondamage.total_speed=g
-# nondamage.run_speed_modifier=g
-# nondamage.offensive_ability=g
-# nondamage.defensive_ability=g
-# nondamage.crit_damage=g
-# nondamage.damage_mult=g
-# nondamage.total_damage=g
 ```
 
-If a key is omitted, gdse keeps the built-in default for that category.
+This is totally valid: one line is enough. Any key you do not include keeps the
+built-in gdse default for that category.
 
 You can override just one category if you want. Example: a file containing only
 `damage.chaos=f` changes Chaos to hot pink and leaves every other color on gdse defaults.
+
+#### Palette Keys Reference
+
+Use these keys in `gdse-palette.txt`:
+
+| Key | Controls |
+|---|---|
+| `rarity.common` | Common item/affix rarity color |
+| `rarity.magical` | Magical item/affix rarity color |
+| `rarity.rare` | Rare item/affix rarity color |
+| `damage.physical` | Physical damage property color |
+| `damage.pierce` | Pierce damage property color |
+| `damage.bleeding` | Bleeding damage property color |
+| `damage.fire` | Fire damage property color |
+| `damage.cold` | Cold damage property color |
+| `damage.lightning` | Lightning damage property color |
+| `damage.poison` | Poison/Acid damage property color |
+| `damage.vitality` | Vitality damage property color |
+| `damage.life` | Life-based property color |
+| `damage.aether` | Aether damage property color |
+| `damage.chaos` | Chaos damage property color |
+| `damage.elemental` | Elemental damage property color |
+| `nondamage.attribute0` | Cunning/Spirit/Physique aggregate color |
+| `nondamage.mastery_increment` | +Mastery level line color |
+| `nondamage.all_skill_increment` | +All Skills line color |
+| `nondamage.run_speed` | Run speed line color |
+| `nondamage.cast_speed` | Cast speed line color |
+| `nondamage.attack_speed` | Attack speed line color |
+| `nondamage.total_speed` | Total speed modifier line color |
+| `nondamage.run_speed_modifier` | Run speed modifier line color |
+| `nondamage.offensive_ability` | Offensive Ability line color |
+| `nondamage.defensive_ability` | Defensive Ability line color |
+| `nondamage.crit_damage` | Crit damage modifier line color |
+| `nondamage.damage_mult` | Damage multiplier line color |
+| `nondamage.total_damage` | Total damage modifier line color |
 
 ### Common Windows Issues
 
